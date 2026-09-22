@@ -34,6 +34,7 @@ export default class CopyousExtension extends Extension {
 	updateHistory = false;
 	clipboardManager;
 	_initEntryTrackerRunning = false;
+	_entryFillId = -1;
 	// Bumped on every enable and disable. Async work started by _doEnable()
 	// captures it and bails out if it no longer matches, so a disable that
 	// lands while it is awaiting cannot leave resources behind.
@@ -105,7 +106,7 @@ export default class CopyousExtension extends Extension {
 		);
 
 		// DBus
-		this.dbus = new DbusService();
+		this.dbus = new DbusService(this);
 		this.dbus.connectObject(
 			'toggle',
 			() => this.clipboardDialog?.toggle(),
@@ -291,21 +292,57 @@ export default class CopyousExtension extends Extension {
 		};
 	}
 
+	_cancelEntryFill() {
+		if (this._entryFillId >= 0) {
+			GLib.source_remove(this._entryFillId);
+			this._entryFillId = -1;
+		}
+	}
+
 	async initEntryTracker() {
+		// A re-trigger while a previous fill is still slicing must not let the
+		// stale slices re-add entries into the freshly cleared dialog.
+		this._cancelEntryFill();
 		if (this._initEntryTrackerRunning) return;
 		this._initEntryTrackerRunning = true;
 		const generation = this._enableGeneration;
 		try {
 			if (!this.entryTracker || !this.entryTracker.shouldInit) return;
 			this.clipboardDialog?.clearEntries();
+			const loadStart = GLib.get_monotonic_time();
 			const entries = await this.entryTracker.init();
 			if (generation !== this._enableGeneration) return;
-			for (const entry of entries) {
-				this.clipboardDialog?.addEntry(entry);
-			}
-			// Warm up dialog caches while idle so the first open() after
-			// login doesn't pay cold-start costs under the modal grab.
-			this.clipboardDialog?.warmup();
+			this.logger?.log?.(
+				`[timing] loaded ${entries.length} entries in ${(GLib.get_monotonic_time() - loadStart) / 1000}ms`,
+			);
+			// Add entries in idle slices instead of one synchronous burst, so a
+			// keybinding press right after login never queues behind ~70 item
+			// constructions on the main loop.
+			const fillStart = GLib.get_monotonic_time();
+			let index = 0;
+			const perSlice = 8;
+			const fillSlice = () => {
+				this._entryFillId = -1;
+				if (generation !== this._enableGeneration) return GLib.SOURCE_REMOVE;
+				const end = Math.min(index + perSlice, entries.length);
+				for (; index < end; index++) this.clipboardDialog?.addEntry(entries[index]);
+				if (index >= entries.length) {
+					this.logger?.log?.(
+						`[timing] filled ${entries.length} entries in ${(GLib.get_monotonic_time() - fillStart) / 1000}ms`,
+					);
+					// Warm up dialog caches while idle so the first open() after
+					// login doesn't pay cold-start costs under the modal grab.
+					const warmupStart = GLib.get_monotonic_time();
+					this.clipboardDialog?.warmup();
+					this.logger?.log?.(
+						`[timing] warmup took ${(GLib.get_monotonic_time() - warmupStart) / 1000}ms`,
+					);
+					return GLib.SOURCE_REMOVE;
+				}
+				this._entryFillId = GLib.idle_add(GLib.PRIORITY_DEFAULT, fillSlice);
+				return GLib.SOURCE_REMOVE;
+			};
+			this._entryFillId = GLib.idle_add(GLib.PRIORITY_DEFAULT, fillSlice);
 		} finally {
 			// If a newer generation took over, it owns the flag now.
 			if (generation === this._enableGeneration) this._initEntryTrackerRunning = false;
@@ -353,6 +390,7 @@ export default class CopyousExtension extends Extension {
 		this._enableGeneration++;
 		// The new generation has to be able to start its own init.
 		this._initEntryTrackerRunning = false;
+		this._cancelEntryFill();
 
 		// UI
 		this.clipboardDialog?.disconnectObject(this);
