@@ -1,0 +1,9 @@
+# Local runtime state — never commit these.
+# The live clipboard database lives in $XDG_DATA_HOME/copyous@local/, but a
+# stray copy can appear in the extension directory (e.g. DEBUG_COPYOUS_DBPATH).
+*.db
+*.db-wal
+*.db-shm
+*.db-journal
+clipboard.json
+custom-theme.css
