@@ -244,10 +244,24 @@ export default class CopyousExtension extends Extension {
 			);
 		}
 		const languages = getHljsLanguages(this);
+		const path = getDataPath(this).get_child('languages');
+		let languageFiles = null;
+		try {
+			languageFiles = new Set();
+			const enumerator = path.enumerate_children('standard::name', Gio.FileQueryInfoFlags.NONE, null);
+			let info;
+			while ((info = enumerator.next_file(null)) !== null) languageFiles.add(info.get_name());
+			enumerator.close(null);
+		} catch {
+			// Keep the old per-file query fallback for an unavailable directory.
+			languageFiles = null;
+		}
 		await Promise.all(
-			languages.map(async ([name, _language, _hash, path]) => {
+			languages.map(async ([name, _language, _hash, path, system]) => {
 				const enabled = this.hljsLanguages?.get(name) ?? false;
-				if (!path.query_exists(null)) {
+				const exists =
+					system || (languageFiles === null ? path.query_exists(null) : languageFiles.has(path.get_basename()));
+				if (!exists) {
 					if (enabled) {
 						this.hljs?.unregisterLanguage(name);
 						this.hljsLanguages?.set(name, false);
