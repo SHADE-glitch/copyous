@@ -252,9 +252,13 @@ export default class CopyousExtension extends Extension {
 	}
 
 	connectHljsInit(fn) {
-		if (this.hljs != null) return;
+		if (this.hljs != null) return () => {};
 		this.hljsCallbacks ??= [];
 		this.hljsCallbacks.push(fn);
+		return () => {
+			const index = this.hljsCallbacks?.indexOf(fn) ?? -1;
+			if (index >= 0) this.hljsCallbacks.splice(index, 1);
+		};
 	}
 
 	async initEntryTracker() {
@@ -332,6 +336,7 @@ export default class CopyousExtension extends Extension {
 		this.dbus = undefined;
 
 		// Feedback
+		this.notificationManager?.destroy();
 		this.notificationManager = undefined;
 		this.soundManager?.destroy();
 		this.soundManager = undefined;
