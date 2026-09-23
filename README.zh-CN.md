@@ -7,6 +7,7 @@
 ![GNOME Shell](https://img.shields.io/badge/GNOME%20Shell-48--50-blue)
 ![License: GPL-3.0-or-later](https://img.shields.io/badge/license-GPL--3.0--or--later-blue)
 ![Based on: Copyous](https://img.shields.io/badge/based%20on-Copyous-orange)
+[![Repository](https://img.shields.io/badge/repository-GitHub-black?logo=github)](https://github.com/SHADE-glitch/copyous)
 
 ## 项目说明
 
@@ -49,11 +50,18 @@ sudo zypper install libgda-6_0-sqlite typelib-1_0-Gda-6_0 typelib-1_0-GSound-1_0
 ## 安装
 
 ```bash
-git clone <你的仓库地址> ~/.local/share/gnome-shell/extensions/copyous@local
+git clone https://github.com/SHADE-glitch/copyous.git ~/.local/share/gnome-shell/extensions/copyous@local
 gnome-extensions enable copyous@local
 ```
 
 在 Wayland 下需注销后重新登录，GNOME Shell 才会加载扩展。
+
+### 卸载
+
+```bash
+gnome-extensions disable copyous@local
+rm -rf ~/.local/share/gnome-shell/extensions/copyous@local
+```
 
 ## 使用
 
@@ -105,3 +113,5 @@ gnome-extensions enable copyous@local
 本项目采用 **GNU 通用公共许可证 v3.0 或更高版本** —— 见 [LICENSE](LICENSE)。
 
 作为 Copyous 的衍生作品，本分支继续沿用 GPL-3.0-or-later，并保留上游版权声明。
+
+© boerdereinar 及贡献者；分支修改 © SHADE-glitch。

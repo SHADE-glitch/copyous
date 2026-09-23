@@ -7,6 +7,7 @@ A modern clipboard manager for GNOME.
 ![GNOME Shell](https://img.shields.io/badge/GNOME%20Shell-48--50-blue)
 ![License: GPL-3.0-or-later](https://img.shields.io/badge/license-GPL--3.0--or--later-blue)
 ![Based on: Copyous](https://img.shields.io/badge/based%20on-Copyous-orange)
+[![Repository](https://img.shields.io/badge/repository-GitHub-black?logo=github)](https://github.com/SHADE-glitch/copyous)
 
 ## About
 
@@ -49,11 +50,18 @@ sudo zypper install libgda-6_0-sqlite typelib-1_0-Gda-6_0 typelib-1_0-GSound-1_0
 ## Installation
 
 ```bash
-git clone <your-fork-url> ~/.local/share/gnome-shell/extensions/copyous@local
+git clone https://github.com/SHADE-glitch/copyous.git ~/.local/share/gnome-shell/extensions/copyous@local
 gnome-extensions enable copyous@local
 ```
 
 On Wayland you must log out and back in for GNOME Shell to load the extension.
+
+### Uninstall
+
+```bash
+gnome-extensions disable copyous@local
+rm -rf ~/.local/share/gnome-shell/extensions/copyous@local
+```
 
 ## Usage
 
@@ -105,3 +113,5 @@ This extension is a **maintenance fork** of **Copyous** by **boerdereinar**. All
 Licensed under the **GNU General Public License v3.0 or later** — see [LICENSE](LICENSE).
 
 As a derivative work of Copyous, this fork remains under GPL-3.0-or-later and retains the upstream copyright notice.
+
+© boerdereinar and contributors; fork modifications © SHADE-glitch.
