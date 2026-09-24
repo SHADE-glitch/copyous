@@ -125,6 +125,7 @@ rm -rf ~/.local/share/gnome-shell/extensions/copyous@local
 | `430e64b` | docs | 新增双语 README（EN + zh-CN），标注上游归属 | — |
 | `68c89d1` | chore | 内置 GPL-3.0 LICENSE 全文 | 履行许可证义务 |
 | `a9f89f1` | docs | 仓库徽章、真实 clone 地址、卸载章节、维护者署名 | — |
+| `f0761fe` | fix | 修复条目移除时从不 `destroy()` 的泄漏；补齐整条 JS 销毁链与 `releaseModalState()`；`decodeURI` 改 `tryDecodeUri()`；`deleteOldest()` 串行化 + `busy_timeout=800`；搜索加 100ms debounce；填充期 `warmup()`；打开链路加 TTI 埋点 | 详见该提交正文。核心是 `clearItems()`/`removeItem()` 只 `remove_child` 从不 `destroy()`，每条目 11+ 个挂在进程级 `ext.settings` 上的处理器把整棵 widget 树钉住，journal 累计 130 次 GC 清扫期回调拦截 |
 
 ### 已知但**有意未修**的分歧点
 
@@ -134,6 +135,9 @@ rm -rf ~/.local/share/gnome-shell/extensions/copyous@local
 - **`clipboard.js` 的 250ms 粘贴延迟**：它在等关闭动画（`ANIMATION_TIME = 150`）+ `popModal` + 焦点回归目标窗口完成，否则合成的按键会落在 shell 的模态抓取上。缩短它有把粘贴打到错误窗口的真实风险。
 - **`contentInfo.js` 的 `Intl.Segmenter` 全文计数**：已有 `TEXT_COUNT_LIMIT = 10000` 上限；实测 107 条 2k 文本的 grapheme 计数总共只要 18.8ms，不是瓶颈。
 - **`highlightAuto` 的 2000 字符切片**：GJS 实测 26.19ms（29 语言子集）vs 29.05ms（全 36 语言）——语言子集只省 10%，真正的成本来自切片长度。降到 500 字符可省到 6.66ms，但会降低语言探测准确率，属于用功能换指标。
+- **首开渐进揭示的 4.8–6.6 秒不是 CPU 成本，别去"优化"它**：`_revealSlice` 已把总时长拆成 `work`/`gap`/`pseudo`/`setup` 四段互斥账。真实会话实测 `244 items in 31 slices, 6567ms = work 201 + gap 6275 + pseudo 86 + setup 5`——**95.5% 是 gap**，即 `PRIORITY_DEFAULT_IDLE` 源在等主循环空出来（这正是它该有的行为：把 CPU 让给输入与合成器）。真实每条 CPU 只有 **0.82ms**。因此"视口感知揭示"（只 map 折叠线内条目）最多省约 180ms 后台 CPU、摊在 6.5 秒内用户无感，却要同时改 `updateVisible()` 计数、首尾伪类、搜索过滤三条路径，改错会出现"滚下去是空白"。同一段揭示在不同会话分别是 4853ms 与 6567ms（代码未变，差 35%），也证明它是环境量而非固定成本。
+- **`idle after redraw` 在首开那次被揭示的 gap 污染**：该探针跑在 `PRIORITY_LOW(300)`，所有 `DEFAULT_IDLE(200)` 的揭示分片必然先排空，于是首开的这个数几乎等于 gap。验收应看 `TTI (main loop free)` 与**后续**打开的 `idle`；首开那个值只作参考，不要拿它当回归判据。
+- **`history-length` 只约束淘汰，不截断显示**：全仓库仅 `entryTracker.js` 的两处用到它，都在裁剪路径上。所以对话框渲染的是库里**全部**行，稳态行数 = `history-length` + (pinned + tagged)。实测 `history-length 250` 配 7 pin + 2 tag 时 `filled 259 entries`。含义：**pin 越多渲染越多且无上限**——真要控制规模，该限的是 pin 数而不是 `history-length`。另：底部那几条 pinned/tagged 永远不会被替换，淘汰前沿是"最老的非 pinned 非 tagged"那条，位置在永生块**上方一格**，所以盯着列表最底部看不出历史在滚动，这是设计行为。
 
 ## 参与贡献
 

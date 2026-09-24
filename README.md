@@ -85,10 +85,11 @@ Open **GNOME Settings → Extensions → Copyous → Settings** to configure the
 
 ## Changes vs upstream (2.0.1)
 
-This fork adds 16 commits on top of the upstream 2.0.1 baseline (`335fff2`), and the
+This fork adds commits on top of the upstream 2.0.1 baseline (`335fff2`), and the
 baseline snapshot itself already carried fork changes (the `copyous@local` uuid, deferred
 keybinding registration, dialog warmup with progressive reveal, and history pruning with
-future-timestamp clamping).
+future-timestamp clamping). The count is deliberately not stated here — `git rev-list
+--count 335fff2..HEAD` is authoritative and a hardcoded number always drifts.
 
 The authoritative, per-commit divergence list — including what was deliberately **not**
 changed and why — lives in [README.zh-CN.md](README.zh-CN.md#相对上游的改动201). It is
