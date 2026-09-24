@@ -85,13 +85,55 @@ rm -rf ~/.local/share/gnome-shell/extensions/copyous@local
 
 ## 相对上游的改动（2.0.1）
 
-本分支在上游 2.0.1 基线（`335fff2`）之上新增 13 个提交：
+本节是**本地分歧清单**，用于将来与上游对比：逐条记录改了什么、为什么、在哪个提交。
+基线快照是 `335fff2`（上游 2.0.1 + 接手时已有的 fork 状态），其上有 16 个本地提交。
 
-- **安全 / 正确性：** **将所有 Gda 查询参数化**（移除字符串拼接 SQL），并在 21 个文件中进行了一轮正确性、性能与清理。
-- **资源泄漏：** 修复每次启用/禁用泄漏的资源；丢弃在禁用后才完成的异步初始化；统一两个用户下的 `actions.json` 监视守卫；修复被模态抓取（modal grab）抢走的弹窗键盘焦点及 `focusChild` 拼写错误。
-- **性能：** 记忆化 `localeContains` 并提升 collator 调用；减少启动时的文件存在性扫描；避免重复的代码条目自动识别；缓存动作正则；为对话框打开计时；修复公共目录遍历。
-- **数据库：** 启用 **WAL** 与 `synchronous=NORMAL`；Gda 5 语句自适应轮询；仅在条目确实可被淘汰时才裁剪历史。
-- **国际化：** 重命名 `.mo` 文件以匹配 gettext 域。
+> 提示：本仓库**没有**设置上游 remote，`origin` 指向分支自己的仓库。
+> 若要与上游对比，请单独 `git remote add upstream https://github.com/boerdereinar/copyous.git`
+> 后 `git fetch upstream`，再用 `git diff upstream/main...HEAD` 查看分歧面。
+
+### 基线快照 `335fff2` 已包含的 fork 改动
+
+接手时树里就不是干净的上游导出，以下差异在基线内、无独立提交：
+
+| 改动 | 为什么 |
+| --- | --- |
+| `uuid` 改为 `copyous@local` | 与上游版本并存安装，避免冲突 |
+| keybinding 注册加固：整个 `enable()` 主体推迟到低优先级 idle | GDM 自动登录 / 挂起恢复时 `Main.wm.addKeybinding` 尚未就绪 |
+| `clipboardDialog.warmup()` + 渐进揭示（progressive reveal） | 登录后首次打开弹窗时，冷缓存下的 `show()` 曾阻塞主循环达 11 秒 |
+| `ClipboardEntryTracker` 的历史裁剪与未来时间戳钳制 | 时钟漂移 / 时区错误会让条目排到列表顶部 |
+
+运行时资产（`theme.gresource`、`resources.gresource`）是**有意提交**的：本扩展没有构建步骤，直接从该目录运行，删掉会让全新检出无法工作。
+
+### 本地提交（按时间正序）
+
+| 提交 | 类别 | 改了什么 | 为什么 |
+| --- | --- | --- | --- |
+| `a30ac0e` | perf(db) | Gda 5 语句自适应轮询（`GDA5_POLL_PLAN`：2ms×25 → 10ms×25 → 100ms×7） | Gda 5 无异步完成回调；固定 100ms 间隔给每次查询强加了 ≥100ms 下限（每次复制 4 条语句、启动 5 条） |
+| `c9032cb` | fix(i18n) | `.mo` 文件重命名为 `copyous@local.mo` | 文件名必须匹配 `metadata.json` 的 `gettext-domain`，否则翻译不生效 |
+| `6ba6862` | perf(db) | 仅在确实有条目可淘汰时才裁剪历史 | 原先每次插入都跑裁剪（一次 `ORDER BY datetime` 扫描 + 一次 DELETE），而可裁剪数通常正好卡在上限，白跑 |
+| `16cbbd3` | perf(db) | SQLite 后端启用 WAL + `synchronous=NORMAL` | 本机实测：默认 delete+FULL 下每次插入 ~1.9ms，wal+NORMAL 下 ~0.09ms。`NORMAL` 仅与 WAL 同时使用才安全——断电可能丢最后几个事务，但不会损坏文件，对剪贴板历史可接受 |
+| `610e242` | fix | 统一两个使用方的 `actions.json` 监视守卫 | 守卫条件在 `shortcuts.js` 与 `actionMenu.js` 之间不一致 |
+| `040dcb7` | perf(search) | 记忆化 `localeContains`，collator 提升为模块级 | 每次按键都会对相同的「文本 × 查询」组合重复做 ICU 比较 |
+| `7283fb8` | fix | 释放每次启用/禁用都泄漏的资源 | 涉及 `sound.js`、`notifications.js`、`qrCodeDialog.js`、`codeLabel.js` 等 8 个文件 |
+| `ad5cb9f` | fix | 丢弃在禁用之后才完成的异步初始化 | 引入 `_enableGeneration` 代数计数器，异步续体在 `await` 之后比对代数 |
+| `8e158b3` | perf | 减少启动期的文件存在性扫描 | `constants.js`、`icons.js`、`extension.js` 启动路径上的重复 `query_exists` |
+| `51e65ba` | perf | 避免代码条目的重复自动识别 | 同一段代码被 `highlightAuto` 探测两次 |
+| `0c463b2` | perf | 缓存动作正则；为对话框打开计时；修复公共目录遍历 | `Color.parse` 等路径每次调用都重新编译正则 |
+| `5f1f63e` | fix | **将所有 Gda 查询参数化**（移除字符串拼接 SQL），并在 21 个文件做一轮正确性/性能/清理 | 消除 SQL 注入面；同时修掉 `unescapeContent` 把 `\\` 折叠成 `\` 从而永久损坏含反斜杠条目的问题（改为参数绑定 + 一次性数据迁移）。**有意跳过** `deleteOldest` 的字符串手术（见下） |
+| `9e32688` | fix | 恢复被模态抓取抢走的弹窗键盘焦点；修正 `focusChild` 拼写 | `pushModal()`/`system-modal-opened` 会把 key focus 抢到外层 modal actor，导致全部键盘操作失效；另 `focus_child` 在 St 中不存在，原调用抛 TypeError 并中断其后的信号连接 |
+| `430e64b` | docs | 新增双语 README（EN + zh-CN），标注上游归属 | — |
+| `68c89d1` | chore | 内置 GPL-3.0 LICENSE 全文 | 履行许可证义务 |
+| `a9f89f1` | docs | 仓库徽章、真实 clone 地址、卸载章节、维护者署名 | — |
+
+### 已知但**有意未修**的分歧点
+
+记录下来，避免将来重复评估：
+
+- **`gda.js` 的 `deleteOldest()`**：用 `selectSql.replace('select1', ...)` 做字符串改写，且子查询执行两次（一次取 id、一次删除）。原因是 Gda 5 的 JS 绑定**不暴露** `add_subselect`，也无法在复合语句里用 `ORDER BY`。`5f1f63e` 明确标注 "Skipped intentionally"。任何改写都踩在 libgda 绑定行为细节上，而收益仅在 `history-time > 0` 且真的触发裁剪时出现（行数 ≤500，毫秒级、频次低）。
+- **`clipboard.js` 的 250ms 粘贴延迟**：它在等关闭动画（`ANIMATION_TIME = 150`）+ `popModal` + 焦点回归目标窗口完成，否则合成的按键会落在 shell 的模态抓取上。缩短它有把粘贴打到错误窗口的真实风险。
+- **`contentInfo.js` 的 `Intl.Segmenter` 全文计数**：已有 `TEXT_COUNT_LIMIT = 10000` 上限；实测 107 条 2k 文本的 grapheme 计数总共只要 18.8ms，不是瓶颈。
+- **`highlightAuto` 的 2000 字符切片**：GJS 实测 26.19ms（29 语言子集）vs 29.05ms（全 36 语言）——语言子集只省 10%，真正的成本来自切片长度。降到 500 字符可省到 6.66ms，但会降低语言探测准确率，属于用功能换指标。
 
 ## 参与贡献
 

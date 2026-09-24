@@ -325,7 +325,12 @@ export default class CopyousExtension extends Extension {
 				this._entryFillId = -1;
 				if (generation !== this._enableGeneration) return GLib.SOURCE_REMOVE;
 				const end = Math.min(index + perSlice, entries.length);
-				for (; index < end; index++) this.clipboardDialog?.addEntry(entries[index]);
+				for (; index < end; index++) {
+					// Warm each item in the same idle slice that created it: ~8 items
+					// per slice keeps any one callback short, and the style/Pango work
+					// lands in login idle instead of inside the first open().
+					this.clipboardDialog?.addEntry(entries[index])?.warmup();
+				}
 				if (index >= entries.length) {
 					this.logger?.log?.(
 						`[timing] filled ${entries.length} entries in ${(GLib.get_monotonic_time() - fillStart) / 1000}ms`,
@@ -361,6 +366,13 @@ export default class CopyousExtension extends Extension {
 		// A disable during the await already removed the old timer; adding a new
 		// one now would leave a timer running on a disabled extension.
 		if (generation !== this._enableGeneration) return;
+		// A second changed::history-time during the await installs its own timer and
+		// overwrites the id, so re-check before assigning: an id that is overwritten
+		// here could never be removed again and would keep firing every 60s.
+		if (this.historyTimeoutId >= 0) {
+			GLib.source_remove(this.historyTimeoutId);
+			this.historyTimeoutId = -1;
+		}
 		this.historyTimeoutId = GLib.timeout_add_seconds(GLib.PRIORITY_DEFAULT, 60, () => {
 			// Do not update the history if the dialog is open
 			this.updateHistory = this.clipboardDialog?.opened ?? false;

@@ -85,12 +85,19 @@ Open **GNOME Settings → Extensions → Copyous → Settings** to configure the
 
 ## Changes vs upstream (2.0.1)
 
-This fork adds 13 commits on top of the upstream 2.0.1 baseline (`335fff2`):
+This fork adds 16 commits on top of the upstream 2.0.1 baseline (`335fff2`), and the
+baseline snapshot itself already carried fork changes (the `copyous@local` uuid, deferred
+keybinding registration, dialog warmup with progressive reveal, and history pruning with
+future-timestamp clamping).
+
+The authoritative, per-commit divergence list — including what was deliberately **not**
+changed and why — lives in [README.zh-CN.md](README.zh-CN.md#相对上游的改动201). It is
+maintained there only, so that the two files cannot drift apart. In brief:
 
 - **Security / correctness:** **parameterised all Gda queries** (removing string-built SQL), plus a broad correctness, performance and cleanup pass across 21 files.
-- **Resource leaks:** release resources leaked on every enable/disable; discard async init work that outlives a disable; make the `actions.json` monitor guard consistent across both users; restore popup keyboard focus stolen by a modal grab and fix a `focusChild` typo.
-- **Performance:** memoize `localeContains` and hoist the collator call; reduce startup file-existence scans; avoid duplicate code-item autodetection; cache action regexes; time dialog open; fix the common-directory walk.
-- **Database:** enable **WAL** with `synchronous=NORMAL`; adaptive polling for Gda 5 statements; prune history only when an entry can actually be evicted.
+- **Resource leaks:** destroy clipboard items when they are removed; release resources leaked on every enable/disable; discard async init work that outlives a disable; make the `actions.json` monitor guard consistent across both users; restore popup keyboard focus stolen by a modal grab and fix a `focusChild` typo.
+- **Performance:** memoize and debounce search; warm item style/Pango caches during startup fill; memoize `localeContains` and hoist the collator call; reduce startup file-existence scans; avoid duplicate code-item autodetection; cache action regexes; time dialog open; fix the common-directory walk.
+- **Database:** enable **WAL** with `synchronous=NORMAL` and `busy_timeout`; serialise history pruning; adaptive polling for Gda 5 statements; prune history only when an entry can actually be evicted.
 - **i18n:** rename `.mo` files to match the gettext domain.
 
 ## Contributing
