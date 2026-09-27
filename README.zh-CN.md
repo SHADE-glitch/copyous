@@ -83,6 +83,21 @@ rm -rf ~/.local/share/gnome-shell/extensions/copyous@local
 
 打开 **GNOME 设置 → 扩展 → Copyous → 设置**，可配置数据库后端与位置、外观与主题、指示器与对话框行为、提示音、快捷键、标签与动作。
 
+## 测试
+
+四个模块不含 GNOME/GI 导入，因此可用纯 Node 运行 —— 无需 `gjs`、无依赖、无构建步骤：
+
+```
+npm test
+```
+
+- `lib/common/color.js` → `test/color.test.js`（各空间钳位、色相归一、parse 优先级、可逆转换）
+- `lib/common/glob.js` → `test/glob.test.js`（锚定、区分 `/` 的通配符、globstar、字符类、花括号展开、元字符转义）
+- `lib/common/settings.js` → `test/settings.test.js`（绑定生命周期，以及 `paste-on-copy` 迁移）
+- `lib/misc/actor.js` → `test/actor.test.js`（仅可见项的遍历及其边界）
+
+`lib/common/color.js` 依赖 GNOME Shell 注入的全局 `Math.clamp`，因此 color 测试会先装上那一行定义再构造 `Color`。`lib/` 里的其余模块都导入 `gi://`，只能在实机验证。
+
 ## 相对上游的改动（2.0.1）
 
 本节是**本地分歧清单**，用于将来与上游对比：逐条记录改了什么、为什么、在哪个提交。

@@ -83,6 +83,21 @@ Open the clipboard dialog with `Super` `Shift` `V`, or from the panel indicator.
 
 Open **GNOME Settings → Extensions → Copyous → Settings** to configure the database backend and location, appearance and theming, indicator and dialog behavior, notification sounds, keyboard shortcuts, tags and actions.
 
+## Testing
+
+Four modules carry no GNOME/GI imports, so they run under plain Node — no `gjs`, no dependencies, no build step:
+
+```
+npm test
+```
+
+- `lib/common/color.js` → `test/color.test.js` (per-space clamping, hue normalization, parse precedence, invertible conversions)
+- `lib/common/glob.js` → `test/glob.test.js` (anchoring, `/`-aware wildcards, globstar, character classes, brace expansion, metacharacter escaping)
+- `lib/common/settings.js` → `test/settings.test.js` (binding lifecycle, and the `paste-on-copy` migration)
+- `lib/misc/actor.js` → `test/actor.test.js` (visible-only traversal and its edges)
+
+`lib/common/color.js` relies on `Math.clamp`, a global that GNOME Shell injects, so the color suite installs that one-line definition before building a `Color`. Everything else in `lib/` imports `gi://` and can only be verified live in the shell.
+
 ## Changes vs upstream (2.0.1)
 
 This fork adds commits on top of the upstream 2.0.1 baseline (`335fff2`), and the
