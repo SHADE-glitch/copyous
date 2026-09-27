@@ -1,0 +1,10 @@
+{
+  "name": "copyous",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Local maintenance fork of copyous.",
+  "scripts": {
+    "test": "node --test test/*.test.js"
+  }
+}
