@@ -141,6 +141,12 @@ npm test
 | `68c89d1` | chore | 内置 GPL-3.0 LICENSE 全文 | 履行许可证义务 |
 | `a9f89f1` | docs | 仓库徽章、真实 clone 地址、卸载章节、维护者署名 | — |
 | `f0761fe` | fix | 修复条目移除时从不 `destroy()` 的泄漏；补齐整条 JS 销毁链与 `releaseModalState()`；`decodeURI` 改 `tryDecodeUri()`；`deleteOldest()` 串行化 + `busy_timeout=800`；搜索加 100ms debounce；填充期 `warmup()`；打开链路加 TTI 埋点 | 详见该提交正文。核心是 `clearItems()`/`removeItem()` 只 `remove_child` 从不 `destroy()`，每条目 11+ 个挂在进程级 `ext.settings` 上的处理器把整棵 widget 树钉住，journal 累计 130 次 GC 清扫期回调拦截 |
+| `7df1fee` | chore(timing) | 把渐进揭示的总时长拆成 `work`/`gap`/`pseudo`/`setup` 四段互斥账 | 单看总时长无法区分"8 条 show 花了 157ms"和"idle 源等了 157ms"，只有前者值得优化 |
+| `4860c24` | fix | `color.js` 四个缺陷 + 首个测试套件（44 断言） | 零 alpha 的 hex 被当不透明；`parseNamed` 用 `in` 命中原型链（`Color.parse('constructor')` 抛 TypeError，经 `clipboard.js:366` 会整条丢弃历史）；色相 `-360` 归一成 360 越界；灰阶 HWB 塌成近黑 |
+| `c51e620` | fix | `glob.js` 的 `[!...]`/`[...]` 类以字面 `]` 开头时误译 + 19 断言 | 产出的正则里 `[]` 是空类（永不匹配）、`[^]` 是任意字符，与 glob 语义完全相反 |
+| `65a78b5` `0a1e342` | test | `settings.js`、`actor.js` 单测（合计 37 断言） | 五个可被 Node 加载的纯模块现已覆盖四个 |
+| `17ca8a4` `5b2636c` | docs | 新增 `AGENTS.md`；双语 README 补「测试」一节 | — |
+| `e9bc801` | chore(timing) | `open(): show` 后增加只读内容构成埋点 `openProbeSummary()` | `show` 是 paint-bound，不记录屏幕上是什么就无法归因 |
 
 ### 已知但**有意未修**的分歧点
 
@@ -153,6 +159,9 @@ npm test
 - **首开渐进揭示的 4.8–6.6 秒不是 CPU 成本，别去"优化"它**：`_revealSlice` 已把总时长拆成 `work`/`gap`/`pseudo`/`setup` 四段互斥账。真实会话实测 `244 items in 31 slices, 6567ms = work 201 + gap 6275 + pseudo 86 + setup 5`——**95.5% 是 gap**，即 `PRIORITY_DEFAULT_IDLE` 源在等主循环空出来（这正是它该有的行为：把 CPU 让给输入与合成器）。真实每条 CPU 只有 **0.82ms**。因此"视口感知揭示"（只 map 折叠线内条目）最多省约 180ms 后台 CPU、摊在 6.5 秒内用户无感，却要同时改 `updateVisible()` 计数、首尾伪类、搜索过滤三条路径，改错会出现"滚下去是空白"。同一段揭示在不同会话分别是 4853ms 与 6567ms（代码未变，差 35%），也证明它是环境量而非固定成本。
 - **`idle after redraw` 在首开那次被揭示的 gap 污染**：该探针跑在 `PRIORITY_LOW(300)`，所有 `DEFAULT_IDLE(200)` 的揭示分片必然先排空，于是首开的这个数几乎等于 gap。验收应看 `TTI (main loop free)` 与**后续**打开的 `idle`；首开那个值只作参考，不要拿它当回归判据。
 - **`history-length` 只约束淘汰，不截断显示**：全仓库仅 `entryTracker.js` 的两处用到它，都在裁剪路径上。所以对话框渲染的是库里**全部**行，稳态行数 = `history-length` + (pinned + tagged)。实测 `history-length 250` 配 7 pin + 2 tag 时 `filled 259 entries`。含义：**pin 越多渲染越多且无上限**——真要控制规模，该限的是 pin 数而不是 `history-length`。另：底部那几条 pinned/tagged 永远不会被替换，淘汰前沿是"最老的非 pinned 非 tagged"那条，位置在永生块**上方一格**，所以盯着列表最底部看不出历史在滚动，这是设计行为。
+- **`open(): show` 从 9-25 暖开中位 300ms 涨到 9-28 的 406ms 不是本仓库的回归，别再查一遍**：四条独立证据都指向会话级环境而非代码——① `f0761fe..HEAD` 只有 `color.js`/`glob.js`/`clipboardScrollContainer.js` 三个运行时文件变动，全部不在 show 路径上（`color.js` 的改动只会更快：`toLocaleLowerCase`→`toLowerCase`、`in`→`hasOwn`、去掉三目）；② 同一段**未改动**的揭示循环里 `work`/条 从 0.223ms 涨到 0.380ms，而纯 DB+JS 的 `filled` 稳定在 1563–1669ms，即"每单位 JS 变贵、启动不变"；③ 负载最低的 boot（零浏览器窗口）给出最快的 205ms，负载最高的（103 次窗口活动/4.3h）给出 406ms 中位与 895ms 峰值；④ 9-27 18:06 有一次 apt 升级（Chrome 153→154、Edge、VS Code、chatgpt、gnome-shell-ubuntu-extensions）。**此前记录的基线 183/209/319 作废**：它记为 PID 3000/32015，而这两个 PID 在 journal 中零条日志，不可复核——真实移动是 +35%，不是翻倍。
+- **`show` 不能当回归判据**：同一 boot 内散布 2.65×（337–895ms）、n=6，且首开与暖开的相对关系会在 boot 间翻转（9-25 首开 847 是暖开的 2.8 倍，9-28 首开 369 ≈ 暖开中位）。一次代码回归不可能同时让冷路径变快又让暖路径变慢。要判回归请看 `TTI (main loop free)`，并接受"受控 A/B 需要注销登录"这个代价。`e9bc801` 的内容构成埋点就是为了下次开机能直接对上背景。
+- **9-28 boot 独有的 `Can't update stage views actor … needs an allocation`（10 行，只在那次 895ms 打开后 67ms 出现，其余 4 个 boot 全为 0）**：含义是对话框子树尚未分配就被要求更新 stage view，那一帧不绘制、下一帧补。30 次打开只出现 1 次、无功能故障、本机无法复现 → **待确认**，不为此改代码。
 
 ## 参与贡献
 
