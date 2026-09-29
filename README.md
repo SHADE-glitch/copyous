@@ -32,17 +32,20 @@ It is **not** affiliated with or endorsed by the upstream author. The fork prese
 
 | Requirement | Details |
 |---|---|
+| OS | Ubuntu (verified on Ubuntu 26.04) — other distributions are **unverified** |
 | GNOME Shell | 48 – 50 |
 | Libgda | Libgda 5.0 or 6.0 **with SQLite support** |
 | GSound | Optional, for notification sounds |
 
 ```bash
+# Ubuntu / Debian (verified)
+sudo apt install gir1.2-gda-5.0 gir1.2-gsound-1.0
+
+# Untested on this fork — package names only, listed for reference:
 # Fedora
 sudo dnf install libgda libgda-sqlite gsound
 # Arch Linux
 sudo pacman -S libgda6 gsound
-# Ubuntu / Debian
-sudo apt install gir1.2-gda-5.0 gir1.2-gsound-1.0
 # openSUSE
 sudo zypper install libgda-6_0-sqlite typelib-1_0-Gda-6_0 typelib-1_0-GSound-1_0
 ```
@@ -115,6 +118,7 @@ maintained there only, so that the two files cannot drift apart. In brief:
 - **Performance:** memoize and debounce search; warm item style/Pango caches during startup fill; memoize `localeContains` and hoist the collator call; reduce startup file-existence scans; avoid duplicate code-item autodetection; cache action regexes; time dialog open; fix the common-directory walk.
 - **Database:** enable **WAL** with `synchronous=NORMAL` and `busy_timeout`; serialise history pruning; adaptive polling for Gda 5 statements; prune history only when an entry can actually be evicted.
 - **i18n:** rename `.mo` files to match the gettext domain.
+- **GNOME / GI compatibility:** pin the `Gtk`/`Gdk` imports to `?version=4.0` and `link.js`'s `Soup` import to `?version=3.0`.
 
 ## Contributing
 
