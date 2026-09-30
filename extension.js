@@ -35,6 +35,7 @@ export default class CopyousExtension extends Extension {
 	clipboardManager;
 	_initEntryTrackerRunning = false;
 	_entryFillId = -1;
+	_childSettings = null;
 	// Bumped on every enable and disable. Async work started by _doEnable()
 	// captures it and bails out if it no longer matches, so a disable that
 	// lands while it is awaiting cannot leave resources behind.
@@ -292,6 +293,20 @@ export default class CopyousExtension extends Extension {
 		};
 	}
 
+	// One shared GSettings per child schema. Item constructors used to call
+	// settings.get_child() per instance, so at history-length 250 the session held
+	// up to 255 extra GSettings objects, each with its own dconf watch; clipboard.js
+	// built two more throwaways on every single copy.
+	childSettings(name) {
+		this._childSettings ??= new Map();
+		let child = this._childSettings.get(name);
+		if (!child) {
+			child = this.settings.get_child(name);
+			this._childSettings.set(name, child);
+		}
+		return child;
+	}
+
 	_cancelEntryFill() {
 		if (this._entryFillId >= 0) {
 			GLib.source_remove(this._entryFillId);
@@ -455,6 +470,7 @@ export default class CopyousExtension extends Extension {
 		// Globals
 		this.settings?.disconnectObject(this);
 		this.settings = undefined;
+		this._childSettings = undefined;
 		this.logger = undefined;
 	}
 }
