@@ -163,7 +163,7 @@ export default class CopyousExtension extends Extension {
 		this.clipboardManager.connectObject(
 			'clipboard',
 			(_, entry) => {
-				this.clipboardDialog?.addEntry(entry);
+				this.clipboardDialog?.registerEntry(entry);
 				this.indicator?.showEntry(entry);
 				this.indicator?.animate();
 				this.notificationManager?.notification(entry);
@@ -341,10 +341,9 @@ export default class CopyousExtension extends Extension {
 				if (generation !== this._enableGeneration) return GLib.SOURCE_REMOVE;
 				const end = Math.min(index + perSlice, entries.length);
 				for (; index < end; index++) {
-					// Warm each item in the same idle slice that created it: ~8 items
-					// per slice keeps any one callback short, and the style/Pango work
-					// lands in login idle instead of inside the first open().
-					this.clipboardDialog?.addEntry(entries[index])?.warmup();
+					// ~8 entries per slice keeps any one callback short. The container
+					// decides which of them get an actor, and warms the ones it builds.
+					this.clipboardDialog?.registerEntry(entries[index]);
 				}
 				if (index >= entries.length) {
 					this.logger?.log?.(
