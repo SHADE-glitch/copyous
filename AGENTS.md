@@ -22,7 +22,15 @@ Copyous (baseline 2.0.1), published as `SHADE-glitch/copyous`.
   | `lib/common/settings.js` | `test/settings.test.js` |
   | `lib/misc/actor.js` | `test/actor.test.js` |
 
-  The fifth, `thirdparty/qrcodegen.js`, is vendored upstream code and is deliberately not tested. Everything else in `lib/` imports `gi://` and can only be verified live in the shell.
+  The fifth, `thirdparty/qrcodegen.js`, is vendored upstream code and is deliberately not tested. Everything else in `lib/` imports `gi://` and cannot be tested under Node — for that surface there is `test/headless/`, which boots an isolated `gnome-shell --headless` (private dbus, `GSETTINGS_BACKEND=memory`, scratch `XDG_DATA_HOME`, a synthetic DB fixture) and drives it with probes:
+
+  ```sh
+  ./test/headless/run.sh all        # 3 configs x 5 probes, ~8 min
+  ./test/headless/run.sh live 01    # one probe, the maintainer's real config
+  ```
+
+  Configs are `configs/{live,unwindowed,horizontal}.json`; results land in `/tmp/copyous-harness/out`. It never touches the live `clipboard.db` or the real dconf.
+- **Read `MAINTENANCE.md` before debugging a performance or lifecycle question.** It records which log fields are valid regression criteria (`TTI (main loop free)`, the CRITICAL count) and which are noise (`open(): show` scatters 2.65x within one boot; first-open `idle after redraw` is polluted by reveal gap), plus how to get the *real* session shell's PID without grabbing a leftover headless one.
 - **`color.js` needs a shim.** Its `Color` constructor calls `Math.clamp`, which is not a JavaScript built-in — GNOME Shell 50.1 injects it (`/usr/lib/gnome-shell/libshell-18.so`). `test/color.test.js` installs the shell's own one-line definition before building any `Color`; any new test that constructs one needs the same shim.
 - Everything the modules touch is duck-typed, so fake the collaborators (a fake `Gio.Settings`, a fake widget, a fake actor tree) rather than reaching for the real classes.
 - When fixing a bug, add a regression test that **fails against the pre-fix code** first.

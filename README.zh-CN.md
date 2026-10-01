@@ -99,7 +99,18 @@ npm test
 - `lib/common/settings.js` → `test/settings.test.js`（绑定生命周期，以及 `paste-on-copy` 迁移）
 - `lib/misc/actor.js` → `test/actor.test.js`（仅可见项的遍历及其边界）
 
-`lib/common/color.js` 依赖 GNOME Shell 注入的全局 `Math.clamp`，因此 color 测试会先装上那一行定义再构造 `Color`。`lib/` 里的其余模块都导入 `gi://`，只能在实机验证。
+`lib/common/color.js` 依赖 GNOME Shell 注入的全局 `Math.clamp`，因此 color 测试会先装上那一行定义再构造 `Color`。
+
+`lib/` 里的其余模块都导入 `gi://`，跑不了 Node，但也不是只能靠手点：`test/headless/` 会起一个隔离的
+`gnome-shell --headless`（私有 dbus、`GSETTINGS_BACKEND=memory`、独立 `XDG_DATA_HOME`、合成 DB
+fixture），用探针驱动它做语义等价、生命周期、视口窗口化与成本的断言。
+
+```
+./test/headless/run.sh all        # 3 配置 x 5 探针，约 8 分钟
+```
+
+它不碰真实 `clipboard.db`，也不写真实 dconf。怎么读它的输出、哪些数能当回归判据，见
+[MAINTENANCE.md](MAINTENANCE.md)。
 
 ## 相对上游的改动（2.0.1）
 
@@ -164,6 +175,7 @@ npm test
 
 - 释放每次启用/禁用都泄漏的资源（`7283fb8`，涉及 `sound.js`、`notifications.js`、`qrCodeDialog.js`、`codeLabel.js` 等 8 个文件）；丢弃在禁用之后才完成的异步初始化，引入 `_enableGeneration` 代数计数器（`ad5cb9f`）。
 - 关闭动画被打断时漏掉 `popModal`，`Main.modalCount` 永久残留（`973c840`）：150ms 关闭动画期间再按一次快捷键，`open()` 的 ease 会**替换**掉那个 transition，而 Clutter 从不执行被替换 transition 的 `onComplete`（50.1 实测 `closeOnCompleteFired: false`）——于是 `Main.popModal()` 被跳过。`popModal()` 在 `modalCount > 0` 时**提前 return**，走不到 `layoutManager.modalEnded()`、`enable_unredirect()` 和 `actionMode` 复原，所以计数器会整会话地留在 ≥1；同一 actor 上二次 `pushModal` 还会撤销前一次 grab 却留下栈记录。修法是把关闭收尾抽成幂等的 `_finishClose()`，`onComplete` 与 `open()` 顶部（先 `remove_all_transitions()`）两处都调它；`close()` 也补上此前从未调用的 `cancelProgressiveReveal()`，否则一次快速关闭会留下最多 31 个 idle 分片与下一次打开抢 CPU。
+- 视口窗口化暴露出的 await-之后-写已销毁 actor 竞态：`FileItem.configureFilePreview()` 在两个 await 之后不检查 `_cancellable` 就 `insert_child_above()` 并调 `configureVisibility()`（后者写 `this._file.clutter_text.line_wrap`，label 已 dispose 时 `clutter_text` 为 null → `TypeError` + 一串 `St.Label … has been already disposed`）；`LinkItem` 在 `await tryGetMetadata()` 之后同样裸写 `this._linkPreview.metadata`。两个类的 `destroy()` 早就 `cancel()` 了，只是续体没人查。`configureFileInfo()` 本来就有这个守卫，另两处漏了。**这是上游就有的缺陷，但窗口化把"偶尔"变成了"持续"** —— 条目现在随滚动和搜索被反复回收，首轮 headless 就刷出 9 条 CRITICAL，补守卫后归零。
 - 修复条目移除时从不 `destroy()` 的泄漏；补齐整条 JS 销毁链与 `releaseModalState()`；`decodeURI` 改 `tryDecodeUri()`；`deleteOldest()` 串行化 + `busy_timeout=800`（`f0761fe`）：`clearItems()`/`removeItem()` 只 `remove_child` 从不 `destroy()`，每条目 11+ 个挂在进程级 `ext.settings` 上的处理器把整棵 widget 树钉住，journal 累计 130 次 GC 清扫期回调拦截。
 
 **测试 / 工具 / 文档**

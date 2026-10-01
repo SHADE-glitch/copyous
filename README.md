@@ -99,7 +99,15 @@ npm test
 - `lib/common/settings.js` → `test/settings.test.js` (binding lifecycle, and the `paste-on-copy` migration)
 - `lib/misc/actor.js` → `test/actor.test.js` (visible-only traversal and its edges)
 
-`lib/common/color.js` relies on `Math.clamp`, a global that GNOME Shell injects, so the color suite installs that one-line definition before building a `Color`. Everything else in `lib/` imports `gi://` and can only be verified live in the shell.
+`lib/common/color.js` relies on `Math.clamp`, a global that GNOME Shell injects, so the color suite installs that one-line definition before building a `Color`.
+
+Everything else in `lib/` imports `gi://` and cannot run under Node — but it is not limited to manual checking either. `test/headless/` boots an isolated `gnome-shell --headless` (private dbus, `GSETTINGS_BACKEND=memory`, its own `XDG_DATA_HOME`, a synthetic DB fixture) and drives it with probes covering search semantics, lifecycle, viewport windowing and cost:
+
+```
+./test/headless/run.sh all        # 3 configs x 5 probes, ~8 min
+```
+
+It never opens the real `clipboard.db` and never writes the real dconf. How to read its output, and which numbers are valid regression criteria, is in [MAINTENANCE.md](MAINTENANCE.md).
 
 ## Changes vs upstream (2.0.1)
 
@@ -114,7 +122,7 @@ changed and why — lives in [README.zh-CN.md](README.zh-CN.md#相对上游的�
 maintained there only, so that the two files cannot drift apart. In brief:
 
 - **Security / correctness:** **parameterised all Gda queries** (removing string-built SQL), plus a broad correctness, performance and cleanup pass across 21 files.
-- **Resource leaks:** destroy clipboard items when they are removed; release resources leaked on every enable/disable; discard async init work that outlives a disable; make the `actions.json` monitor guard consistent across both users; restore popup keyboard focus stolen by a modal grab and fix a `focusChild` typo; finish the close teardown when a shortcut press replaces the close animation's `onComplete`, which otherwise leaks `Main.modalCount` for the whole session.
+- **Resource leaks:** destroy clipboard items when they are removed; release resources leaked on every enable/disable; discard async init work that outlives a disable; make the `actions.json` monitor guard consistent across both users; restore popup keyboard focus stolen by a modal grab and fix a `focusChild` typo; finish the close teardown when a shortcut press replaces the close animation's `onComplete`, which otherwise leaks `Main.modalCount` for the whole session; check the cancellation token before an async continuation writes through a `FileItem`/`LinkItem` actor that viewport recycling may already have destroyed.
 - **Rendering scale / memory:** the freeze after boot or idle is not slow code but resident scale — 255 item trees (~5669 actors, 255 GLSL effects, ~105 MB always resident) inside a shell with ~900 MB swapped out, so opening the dialog is a major-fault storm. Search filtering moved off `actor.visible` onto the entry, the scroll container now treats the entry list as the source of truth with actors as a recyclable cache, and **actors are only built for the viewport ± one screen** when item size is uniform along the scroll axis. Measured A/B on the same data and settings: first-open TTI 423 → 65 ms, RSS after three open/close cycles 474 → 256 MB — at the cost of scrolling being ~13× more expensive per viewport crossed.
 - **Performance:** memoize and debounce search; warm item style/Pango caches during startup fill; memoize `localeContains` and hoist the collator call; reduce startup file-existence scans; avoid duplicate code-item autodetection; cache action regexes; time dialog open; fix the common-directory walk; share one child `GSettings` per item type instead of one per item.
 - **Database:** enable **WAL** with `synchronous=NORMAL` and `busy_timeout`; serialise history pruning; adaptive polling for Gda 5 statements; prune history only when an entry can actually be evicted.
