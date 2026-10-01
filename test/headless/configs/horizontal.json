@@ -1,0 +1,10 @@
+{
+  "_comment": "The schema default a fresh install gets: horizontal list, uniform item-width. Windowing applies here too, and this is the only arm that covers the known 15px-per-exposed-end extent deviation (see README.zh-CN.md, deliberately unfixed).",
+  "clipboard-orientation": "horizontal",
+  "dynamic-item-height": false,
+  "item-height": 170,
+  "item-width": 250,
+  "history-length": 250,
+  "show-header": true,
+  "exclude-pinned": true
+}

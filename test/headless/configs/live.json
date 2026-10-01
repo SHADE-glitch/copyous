@@ -1,0 +1,10 @@
+{
+  "_comment": "The maintainer's real session: vertical list, uniform 170px rows. This is the arm that exercises windowing on the axis that actually matters. exclude-pinned=true is real too -- it is why the log says 'N matching' with N below the row count.",
+  "clipboard-orientation": "vertical",
+  "dynamic-item-height": false,
+  "item-height": 170,
+  "item-width": 555,
+  "history-length": 250,
+  "show-header": true,
+  "exclude-pinned": true
+}

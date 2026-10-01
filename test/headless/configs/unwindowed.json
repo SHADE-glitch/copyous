@@ -1,0 +1,10 @@
+{
+  "_comment": "The fallback path: vertical list with content-sized rows, so item size is NOT uniform and _windowable() returns false. Every entry gets an actor, exactly as before viewport windowing existed. This arm has to stay green, because it is one settings toggle away from the live config.",
+  "clipboard-orientation": "vertical",
+  "dynamic-item-height": true,
+  "item-height": 170,
+  "item-width": 555,
+  "history-length": 250,
+  "show-header": true,
+  "exclude-pinned": true
+}
