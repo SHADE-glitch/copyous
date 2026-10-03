@@ -9,7 +9,7 @@
 ![Based on: Copyous](https://img.shields.io/badge/based%20on-Copyous-orange)
 [![Repository](https://img.shields.io/badge/repository-GitHub-black?logo=github)](https://github.com/SHADE-glitch/copyous)
 
-## 项目说明
+## 📖 项目说明
 
 本仓库是 **boerdereinar** 的 [**Copyous**](https://github.com/boerdereinar/copyous) 的**个人维护分支**，冻结在上游 **2.0.1** 版本，以 `copyous@local` 为 UUID 在本地维护。
 
@@ -17,7 +17,7 @@
 
 > Copyous 本身是 [Pano](https://github.com/oae/gnome-shell-pano) 剪贴板管理器的完全重写。
 
-## 功能特性
+## ✨ 功能特性
 
 - **剪贴板历史**，支持文本、代码、图片、文件、链接、字符、颜色与二维码。
 - **SQLite 后端**（通过 GNOME Data Access / Libgda 5 或 6），另可选 JSON 与内存后端。
@@ -28,7 +28,7 @@
 - **D-Bus 接口**（`org.gnome.Shell.Extensions.Copyous`），可显示、隐藏、切换与清空历史。
 - **82 个 GSettings 键**与 **8 种语言翻译**（de、fr、it、pl、pt_BR、ru、tr、zh_CN）。
 
-## 前置依赖
+## 🧰 前置依赖
 
 | 依赖 | 说明 |
 |---|---|
@@ -50,7 +50,7 @@ sudo pacman -S libgda6 gsound
 sudo zypper install libgda-6_0-sqlite typelib-1_0-Gda-6_0 typelib-1_0-GSound-1_0
 ```
 
-## 安装
+## 📥 安装
 
 ```bash
 git clone https://github.com/SHADE-glitch/copyous.git ~/.local/share/gnome-shell/extensions/copyous@local
@@ -66,7 +66,7 @@ gnome-extensions disable copyous@local
 rm -rf ~/.local/share/gnome-shell/extensions/copyous@local
 ```
 
-## 使用
+## 🖱️ 使用
 
 按 `Super` `Shift` `V` 打开剪贴板对话框，也可点击面板指示器。
 
@@ -82,11 +82,11 @@ rm -rf ~/.local/share/gnome-shell/extensions/copyous@local
 | 切换置顶搜索 | `Alt` |
 | 切换条目类型 | `Ctrl` `Tab` / `Shift` `Ctrl` `Tab` |
 
-## 偏好设置
+## ⚙️ 偏好设置
 
 打开 **GNOME 设置 → 扩展 → Copyous → 设置**，可配置数据库后端与位置、外观与主题、指示器与对话框行为、提示音、快捷键、标签与动作。
 
-## 测试
+## 🧪 测试
 
 四个模块不含 GNOME/GI 导入，因此可用纯 Node 运行 —— 无需 `gjs`、无依赖、无构建步骤：
 
@@ -112,7 +112,7 @@ fixture），用探针驱动它做语义等价、生命周期、视口窗口化�
 它不碰真实 `clipboard.db`，也不写真实 dconf。怎么读它的输出、哪些数能当回归判据，见
 [MAINTENANCE.md](MAINTENANCE.md)。
 
-## 相对上游的改动（2.0.1）
+## 🆚 相对上游的改动（2.0.1）
 
 本节是**本地分歧清单**，用于将来与上游对比：记录改了什么、为什么、在哪个提交。
 基线快照是 `335fff2`（上游 2.0.1 + 接手时已有的 fork 状态）。本地提交数**有意不写死**——
@@ -206,11 +206,11 @@ fixture），用探针驱动它做语义等价、生命周期、视口窗口化�
 - **`lib/misc/actor.js` 运行时已零引用但有意保留**：`6e6f8ab` 之后容器不再靠遍历子节点做导航，该模块在运行时无人 import，但 `test/actor.test.js` 仍在测它、`AGENTS.md` 仍把它列为四个可被 Node 加载的纯模块之一。删它要连带改测试与三处文档，属 churn；留着运行时零成本（ESM 只加载被 import 的模块）。
 - **9-28 boot 独有的 `Can't update stage views actor … needs an allocation`**（10 行，只在那次 895ms 打开后 67ms 出现，其余 4 个 boot 全为 0）：含义是对话框子树尚未分配就被要求更新 stage view，那一帧不绘制、下一帧补。30 次打开只出现 1 次、无功能故障、本机无法复现 → **待确认**，不为此改代码。
 
-## 参与贡献
+## 🤝 参与贡献
 
 欢迎提交 Issue 与 Pull Request。请保持改动范围聚焦，并针对上述 GNOME Shell 版本进行测试。
 
-## 致谢与来源说明
+## 🙏 致谢与来源说明
 
 本扩展是 **boerdereinar** 的 **Copyous** 的**维护分支**。原始设计与功能均出自其手。
 
@@ -221,7 +221,7 @@ fixture），用探针驱动它做语义等价、生命周期、视口窗口化�
 - **借鉴来源：** 剪贴板与键盘处理模式改编自 [Tudmotu/gnome-shell-extension-clipboard-indicator](https://github.com/Tudmotu/gnome-shell-extension-clipboard-indicator)（GPL）；颜色名数据源自 [colorjs/color-name](https://github.com/colorjs/color-name)。
 - **上游脉络：** Copyous 是 [Pano](https://github.com/oae/gnome-shell-pano) 的完全重写。
 
-## 许可证
+## ⚖️ 许可证
 
 本项目采用 **GNU 通用公共许可证 v3.0 或更高版本** —— 见 [LICENSE](LICENSE)。
 

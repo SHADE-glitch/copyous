@@ -9,7 +9,7 @@ A modern clipboard manager for GNOME.
 ![Based on: Copyous](https://img.shields.io/badge/based%20on-Copyous-orange)
 [![Repository](https://img.shields.io/badge/repository-GitHub-black?logo=github)](https://github.com/SHADE-glitch/copyous)
 
-## About
+## 📖 About
 
 This repository is a **personal maintenance fork** of [**Copyous**](https://github.com/boerdereinar/copyous) by **boerdereinar**, frozen at upstream **2.0.1** and maintained locally under the UUID `copyous@local`.
 
@@ -17,7 +17,7 @@ It is **not** affiliated with or endorsed by the upstream author. The fork prese
 
 > Copyous itself is a full rewrite of the [Pano](https://github.com/oae/gnome-shell-pano) clipboard manager.
 
-## Features
+## ✨ Features
 
 - **Clipboard history** for text, code, images, files, links, characters, colors and QR codes.
 - **SQLite backend** via GNOME Data Access (Libgda 5 or 6), with JSON and in-memory alternatives.
@@ -28,7 +28,7 @@ It is **not** affiliated with or endorsed by the upstream author. The fork prese
 - **D-Bus interface** (`org.gnome.Shell.Extensions.Copyous`) to show, hide, toggle and clear history.
 - **82 GSettings keys** and **8 translations** (de, fr, it, pl, pt_BR, ru, tr, zh_CN).
 
-## Prerequisites
+## 🧰 Prerequisites
 
 | Requirement | Details |
 |---|---|
@@ -50,7 +50,7 @@ sudo pacman -S libgda6 gsound
 sudo zypper install libgda-6_0-sqlite typelib-1_0-Gda-6_0 typelib-1_0-GSound-1_0
 ```
 
-## Installation
+## 📥 Installation
 
 ```bash
 git clone https://github.com/SHADE-glitch/copyous.git ~/.local/share/gnome-shell/extensions/copyous@local
@@ -66,7 +66,7 @@ gnome-extensions disable copyous@local
 rm -rf ~/.local/share/gnome-shell/extensions/copyous@local
 ```
 
-## Usage
+## 🖱️ Usage
 
 Open the clipboard dialog with `Super` `Shift` `V`, or from the panel indicator.
 
@@ -82,11 +82,11 @@ Open the clipboard dialog with `Super` `Shift` `V`, or from the panel indicator.
 | Toggle pinned search | `Alt` |
 | Cycle item type | `Ctrl` `Tab` / `Shift` `Ctrl` `Tab` |
 
-## Preferences
+## ⚙️ Preferences
 
 Open **GNOME Settings → Extensions → Copyous → Settings** to configure the database backend and location, appearance and theming, indicator and dialog behavior, notification sounds, keyboard shortcuts, tags and actions.
 
-## Testing
+## 🧪 Testing
 
 Four modules carry no GNOME/GI imports, so they run under plain Node — no `gjs`, no dependencies, no build step:
 
@@ -109,7 +109,7 @@ Everything else in `lib/` imports `gi://` and cannot run under Node — but it i
 
 It never opens the real `clipboard.db` and never writes the real dconf. How to read its output, and which numbers are valid regression criteria, is in [MAINTENANCE.md](MAINTENANCE.md).
 
-## Changes vs upstream (2.0.1)
+## 🆚 Changes vs upstream (2.0.1)
 
 This fork adds commits on top of the upstream 2.0.1 baseline (`335fff2`), and the
 baseline snapshot itself already carried fork changes (the `copyous@local` uuid, deferred
@@ -129,11 +129,11 @@ maintained there only, so that the two files cannot drift apart. In brief:
 - **i18n:** rename `.mo` files to match the gettext domain.
 - **GNOME / GI compatibility:** pin the `Gtk`/`Gdk` imports to `?version=4.0` and `link.js`'s `Soup` import to `?version=3.0`.
 
-## Contributing
+## 🤝 Contributing
 
 Issues and pull requests are welcome. Please keep changes scoped and test them against the GNOME Shell versions listed above.
 
-## Credits & Attribution
+## 🙏 Credits & Attribution
 
 This extension is a **maintenance fork** of **Copyous** by **boerdereinar**. All original design and features are their work.
 
@@ -144,7 +144,7 @@ This extension is a **maintenance fork** of **Copyous** by **boerdereinar**. All
 - **Prior art:** clipboard and keyboard handling patterns adapted from [Tudmotu/gnome-shell-extension-clipboard-indicator](https://github.com/Tudmotu/gnome-shell-extension-clipboard-indicator) (GPL); color-name data derived from [colorjs/color-name](https://github.com/colorjs/color-name).
 - **Upstream lineage:** Copyous is a full rewrite of [Pano](https://github.com/oae/gnome-shell-pano).
 
-## License
+## ⚖️ License
 
 Licensed under the **GNU General Public License v3.0 or later** — see [LICENSE](LICENSE).
 
