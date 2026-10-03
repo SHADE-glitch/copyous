@@ -118,7 +118,7 @@ future-timestamp clamping). The count is deliberately not stated here — `git r
 --count 335fff2..HEAD` is authoritative and a hardcoded number always drifts.
 
 The authoritative, per-commit divergence list — including what was deliberately **not**
-changed and why — lives in [README.zh-CN.md](README.zh-CN.md#相对上游的改动201). It is
+changed and why — lives in [README.zh-CN.md](README.zh-CN.md#-相对上游的改动201). It is
 maintained there only, so that the two files cannot drift apart. In brief:
 
 - **Security / correctness:** **parameterised all Gda queries** (removing string-built SQL), plus a broad correctness, performance and cleanup pass across 21 files.
@@ -128,6 +128,8 @@ maintained there only, so that the two files cannot drift apart. In brief:
 - **Database:** enable **WAL** with `synchronous=NORMAL` and `busy_timeout`; serialise history pruning; adaptive polling for Gda 5 statements; prune history only when an entry can actually be evicted.
 - **i18n:** rename `.mo` files to match the gettext domain.
 - **GNOME / GI compatibility:** pin the `Gtk`/`Gdk` imports to `?version=4.0` and `link.js`'s `Soup` import to `?version=3.0`.
+- **Tests / tooling / docs:** unit suites for the four modules that load under plain Node, a headless harness that drives a real `gnome-shell --headless`, and the maintenance record that says how to read its output (`MAINTENANCE.md`, `AGENTS.md`). Assertion counts and probe results are stated once, in the ledger and in `MAINTENANCE.md`.
+- **Deliberately unfixed:** the ledger also lists divergences that are left in place on purpose, each with the reason it is not worth touching — including where a fix was measured and *rejected*. Those entries are kept only in the Chinese section, so one decision cannot become two competing texts.
 
 ## 🤝 Contributing
 

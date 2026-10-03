@@ -4,7 +4,7 @@
 没有构建步骤，直接从 `~/.local/share/gnome-shell/extensions/copyous@local` 运行。
 
 这份文件只回答三个问题：**改之前跑什么、日志怎么读、哪些东西别碰。**
-"改了什么、为什么改"看 [README.zh-CN.md](README.zh-CN.md#相对上游的改动201) 的分歧清单（权威）；
+"改了什么、为什么改"看 [README.zh-CN.md](README.zh-CN.md#-相对上游的改动201) 的分歧清单（权威）；
 给 agent 的硬规则看 [AGENTS.md](AGENTS.md)。三处不重复，避免漂移。
 
 ---
