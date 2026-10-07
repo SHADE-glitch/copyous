@@ -21,7 +21,7 @@ set -u
 HARNESS=$(cd "$(dirname "$0")" && pwd)
 WORK=${COPYOUS_WORK:-/tmp/copyous-harness}
 OUT=$WORK/out
-ALL_PROBES="01 02 03 04 05"
+ALL_PROBES="01 02 03 04 05 06"
 ALL_CONFIGS="live unwindowed horizontal"
 
 CFG=${1:-}
@@ -30,7 +30,7 @@ if [ -z "$CFG" ]; then
 usage: $0 <config|all> [probe ...]
   configs: $ALL_CONFIGS all
   probes : $ALL_PROBES  (01 search-equivalence 02 lifecycle-modal 03 invariants
-                         04 windowed-structure 05 windowed-cost)
+                         04 windowed-structure 05 windowed-cost 06 ux-hidden)
 EOF
 	exit 2
 fi
@@ -63,29 +63,31 @@ run_probe() {
 	probe=$1
 	name=$2
 	json=$3
-	rm -f "$OUT/$name.json"
+	config=$4
+	# Namespaced by config: without it, `run.sh all` overwrites each arm's result and
+	# leaves only the last config on disk, so the per-arm comparison the suite exists for
+	# cannot be made afterwards.
+	result=$OUT/$config-$name.json
+	rm -f "$result"
 	echo "  -> $name"
 	# The JS is loaded from a file *by the shell*, not pasted into the Eval string:
 	# probe bodies are full of backticks and ${}, which a double-quoted shell string
 	# would happily try to expand.
-	cat "$HARNESS/probes/_preamble.js" "$HARNESS/probes/$name.js" >"$OUT/$name.eval.js"
+	cat "$HARNESS/probes/_preamble.js" "$HARNESS/probes/$name.js" >"$OUT/$config-$name.eval.js"
 	gdbus call --session --dest org.gnome.Shell --object-path /org/gnome/Shell \
 		--method org.gnome.Shell.Eval \
-		"globalThis.__coCfg = $json; globalThis.__coOut = '$OUT/$name.json'; \
-eval(imports.byteArray.toString(GLib.file_get_contents('$OUT/$name.eval.js')[1]))" \
+		"globalThis.__coCfg = $json; globalThis.__coOut = '$result'; \
+eval(imports.byteArray.toString(GLib.file_get_contents('$OUT/$config-$name.eval.js')[1]))" \
 		>/dev/null 2>&1
 	i=0
-	while [ ! -s "$OUT/$name.json" ] && [ $i -lt 90 ]; do
+	while [ ! -s "$result" ] && [ $i -lt 90 ]; do
 		sleep 5
 		i=$((i + 1))
 	done
-	if [ -s "$OUT/$name.json" ]; then
-		# Keep this session's log: up.sh truncates shell.log per session, so checking
-		# only the last one would miss a CRITICAL raised three probes earlier.
-		cp "$OUT/shell.log" "$OUT/$name.shell.log" 2>/dev/null
-		node "$HARNESS/verdict.js" "$OUT/$name.json" "$name"
+	cp "$OUT/shell.log" "$OUT/$config-$name.shell.log" 2>/dev/null
+	if [ -s "$result" ]; then
+		node "$HARNESS/verdict.js" "$result" "$name"
 	else
-		cp "$OUT/shell.log" "$OUT/$name.shell.log" 2>/dev/null
 		echo "     TIMEOUT after 450s"
 		return 1
 	fi
@@ -114,7 +116,7 @@ for config in $CONFIGS; do
 			FAIL=1
 			continue
 		fi
-		run_probe "$probe" "$name" "$json" || FAIL=1
+		run_probe "$probe" "$name" "$json" "$config" || FAIL=1
 		"$HARNESS/down.sh" >/dev/null 2>&1
 	done
 done
