@@ -49,11 +49,12 @@ Copyous (baseline 2.0.1), published as `SHADE-glitch/copyous`.
 ## Recording conventions
 - Behaviour changes land in `CHANGELOG.md` as `D-###` entries; ids are monotonic and **never
   reused**, so a gap means an entry was deleted — `check:log` treats that as a failure, not a cleanup.
-- `kind` ∈ `fix` | `perf` | `taste` | `guard` | `revert`, cut by **who may demand a revert**:
+- `kind` ∈ `fix` | `perf` | `taste` | `guard` | `revert` | `chore`, cut by **who may demand a revert**:
   dropping it makes a bug → `fix`; dropping it only re-introduces measurable degradation → `perf`;
   dropping it merely makes me less happy → `taste` (zero obligation, discardable wholesale on an
   upgrade); it changes no behaviour and only detects drift → `guard`; it withdraws earlier work →
-  `revert`. A commit that is two things at once becomes two entries citing the same hash — done so
+  `revert`; it is cleanup owed nothing either way → `chore`. A commit that is two things at once
+  becomes two entries citing the same hash — done so
   here for `0c463b2` (D-010 perf / D-011 fix) and `f0761fe` (D-014 fix / D-015 guard).
 - `CHANGELOG.md` is a machine-checked **index**, not a second divergence list. The curated
   narrative stays in `README.zh-CN.md` (single authoritative copy); neither file restates the other.
