@@ -26,7 +26,7 @@ const CODE_PATHS = ['extension.js', 'lib/'];
 /** Five kinds. `perf` was added during adoption of this repo: a large share of the work here is
  *  resource/throughput work that is neither a correctness bug (fix) nor a preference (taste), and
  *  folding it into either would misstate what an upgrade is allowed to drop. */
-const KINDS = ['fix', 'perf', 'taste', 'guard', 'revert'];
+const KINDS = ['fix', 'perf', 'taste', 'guard', 'revert', 'chore'];
 const FIELDS = ['Symptom', 'Change', 'Evidence', 'Cost', 'Commit'];
 
 const git = (args) => execFileSync('git', args, { cwd: ROOT, encoding: 'utf8' });
