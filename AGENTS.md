@@ -45,3 +45,24 @@ Copyous (baseline 2.0.1), published as `SHADE-glitch/copyous`.
 - **Do not touch the `Credits & Attribution` / `Changes vs upstream (2.0.1)` sections** unless the change actually affects attribution or the upstream diff.
 - Commit code first, docs in a separate commit. Commit messages use **Chinese subjects with English conventional-commit prefixes** (`fix:` / `perf:` / `test:` / `docs:` / `chore:`).
 - Live logs: `journalctl -f -o cat /usr/bin/gnome-shell`
+
+## Recording conventions
+- Behaviour changes land in `CHANGELOG.md` as `D-###` entries; ids are monotonic and **never
+  reused**, so a gap means an entry was deleted — `check:log` treats that as a failure, not a cleanup.
+- `kind` ∈ `fix` | `perf` | `taste` | `guard` | `revert`, cut by **who may demand a revert**:
+  dropping it makes a bug → `fix`; dropping it only re-introduces measurable degradation → `perf`;
+  dropping it merely makes me less happy → `taste` (zero obligation, discardable wholesale on an
+  upgrade); it changes no behaviour and only detects drift → `guard`; it withdraws earlier work →
+  `revert`. A commit that is two things at once becomes two entries citing the same hash — done so
+  here for `0c463b2` (D-010 perf / D-011 fix) and `f0761fe` (D-014 fix / D-015 guard).
+- `CHANGELOG.md` is a machine-checked **index**, not a second divergence list. The curated
+  narrative stays in `README.zh-CN.md` (single authoritative copy); neither file restates the other.
+- An entry is an assertion **as of its commit**, not current state: never re-verify an old entry,
+  never hand-copy an aggregate count into it — `check:log` and `git rev-list --count` print them.
+- Known-but-not-fixed issues do **not** go in `CHANGELOG.md` (they have no commit). They live in
+  "本文 Known issues" above, `MAINTENANCE.md` §12 and the README's deliberately-unfixed ledger.
+- `Symptom` names the mechanism, never the session: this extension holds the user's clipboard, so
+  no copied text, file path, URL or application name from a real desktop may appear. `D-012` is the
+  reason to be strict — untrusted user content already reaches the database layer.
+- A window containing zero entries is a failure, not a pass.
+- Run `npm run check:log` before committing docs (bare `node scripts/check-log.mjs` works too).

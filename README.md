@@ -120,6 +120,12 @@ future-timestamp clamping). The count is deliberately not stated here — `git r
 The authoritative, per-commit divergence list — including what was deliberately **not**
 changed and why — lives in [README.zh-CN.md](README.zh-CN.md#-相对上游的改动201). It is
 maintained there only, so that the two files cannot drift apart. In brief:
+The per-commit record — kind, evidence tier and commit for every divergence — is
+[CHANGELOG.md](CHANGELOG.md), and `npm run check:log` proves that list covers every commit in the
+declared window that touched production code. Division of labour, so this does not become a third
+copy of the same facts: the curated narrative stays in `README.zh-CN.md` (single authoritative copy,
+as stated above), CHANGELOG.md is the machine-checked index, and neither restates the other.
+
 
 - **Security / correctness:** **parameterised all Gda queries** (removing string-built SQL), plus a broad correctness, performance and cleanup pass across 21 files.
 - **Resource leaks:** destroy clipboard items when they are removed; release resources leaked on every enable/disable; discard async init work that outlives a disable; make the `actions.json` monitor guard consistent across both users; restore popup keyboard focus stolen by a modal grab and fix a `focusChild` typo; finish the close teardown when a shortcut press replaces the close animation's `onComplete`, which otherwise leaks `Main.modalCount` for the whole session; check the cancellation token before an async continuation writes through a `FileItem`/`LinkItem` actor that viewport recycling may already have destroyed.
