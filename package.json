@@ -5,6 +5,7 @@
   "type": "module",
   "description": "Local maintenance fork of copyous.",
   "scripts": {
-    "test": "node --test test/*.test.js"
+    "test": "node --test test/*.test.js",
+    "check:log": "node scripts/check-log.mjs"
   }
 }
