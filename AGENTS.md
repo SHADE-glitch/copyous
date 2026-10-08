@@ -41,6 +41,20 @@ Copyous (baseline 2.0.1), published as `SHADE-glitch/copyous`.
 - Both must stay **green**. There is no build step and no dependency install — a failure means a broken test or a broken record, never a flaky toolchain.
 - The checkout must fetch **full history** (`fetch-depth: 0`): `check:log` walks `git log <anchor>..HEAD` back to the coverage anchor, which a default shallow clone cannot resolve.
 - Action versions are pinned (`actions/checkout@v4`, `actions/setup-node@v4`); bump them deliberately, not as drive-by churn.
+- **Keep CI in step with the code.** Update `.github/workflows/ci.yml` in the *same change* that
+  makes it stale — never as a later cleanup.
+- **New or renamed tests need no CI edit** as long as CI runs the suite command (`npm test`); it
+  does, so it picks them up automatically. Only touch CI if the *command itself* changes.
+- **Environment changes** — a new dependency, a Node version bump, or a new system tool — mean
+  updating the workflow's setup/install steps.
+- **Renamed or moved code**: `check:log` watches a declared list (`CODE_PATHS` in
+  `scripts/check-log.mjs` — currently `extension.js`, `lib/`). If a watched path moves, update that
+  list; the check goes red until you do.
+- **After a refactor**, confirm CI still exercises the real code and the declared paths still cover
+  it. A green CI that no longer touches the changed code is worse than a red one.
+- **A new verification tier** (headless / live) — decide explicitly whether CI runs it; do not add it silently.
+- If what CI runs changes, update this section too. CI is a signal, not a gate, until branch protection
+  is enabled — read the result after every push.
 
 ## Known issues (recorded, not fixed)
 - `new Color(space, c1, c2, c3)` with no alpha argument leaves `alpha = NaN` (`Math.clamp(undefined, 0, 1)`), so `toString()` emits `rgb(10 20 30 / NaN)`. No current caller omits alpha, so this is latent rather than live — but any new caller must pass one.
