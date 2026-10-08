@@ -36,6 +36,11 @@ Copyous (baseline 2.0.1), published as `SHADE-glitch/copyous`.
 - When fixing a bug, add a regression test that **fails against the pre-fix code** first.
 - Test files carry `SPDX-License-Identifier: GPL-3.0-or-later` (the repo licence — note this differs from the `macos-dock@local` sibling, which is GPL-2.0-or-later).
 
+## CI
+- `.github/workflows/ci.yml` runs on every `push` and `pull_request` (`ubuntu-latest`, Node 20). It runs exactly two commands, in order: `npm test` then `npm run check:log`.
+- Both must stay **green**. There is no build step and no dependency install — a failure means a broken test or a broken record, never a flaky toolchain.
+- Action versions are pinned (`actions/checkout@v4`, `actions/setup-node@v4`); bump them deliberately, not as drive-by churn.
+
 ## Known issues (recorded, not fixed)
 - `new Color(space, c1, c2, c3)` with no alpha argument leaves `alpha = NaN` (`Math.clamp(undefined, 0, 1)`), so `toString()` emits `rgb(10 20 30 / NaN)`. No current caller omits alpha, so this is latent rather than live — but any new caller must pass one.
 
@@ -45,6 +50,11 @@ Copyous (baseline 2.0.1), published as `SHADE-glitch/copyous`.
 - **Do not touch the `Credits & Attribution` / `Changes vs upstream (2.0.1)` sections** unless the change actually affects attribution or the upstream diff.
 - Commit code first, docs in a separate commit. Commit messages use **Chinese subjects with English conventional-commit prefixes** (`fix:` / `perf:` / `test:` / `docs:` / `chore:`).
 - Live logs: `journalctl -f -o cat /usr/bin/gnome-shell`
+
+## Release / version
+- The version lives in `metadata.json` as two fields: `version` (an integer GNOME compares to detect an available update) and `version-name` (the human-readable label shown to users).
+- Bump `version` on **every release that changes a shipped file** — GNOME only offers the update when the integer increases, so forgetting it silently strands users on the old build.
+- Bump `version-name` only when the user-facing label actually changes; it currently reads `2.0.1`, the upstream baseline this fork is frozen at, and stays there until the fork adopts its own numbering.
 
 ## Recording conventions
 - Behaviour changes land in `CHANGELOG.md` as `D-###` entries; ids are monotonic and **never
