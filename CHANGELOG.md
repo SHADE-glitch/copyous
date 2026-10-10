@@ -405,3 +405,10 @@ Change   名字解析完先数行数，`>1` 就打 `ambiguous probe prefix: 99 m
 Evidence L0：临时再放一个 `99-diag-zz.js` → `run.sh live 99` 立刻 exit 1 并打印该行，`pgrep -cf` 数到的 harness 进程为 **0**（确实一个会话都没起）；删掉临时文件后 `probes/` 里以 `99` 开头的只剩 1 个。`sh -n` 通过。两个诊断文件用完即删，仓里不留 `99-*`
 Cost     三行 shell。它挡住的是"用一整轮会话去量一个文件名"，没有别的副作用
 Commit   1b6395a
+
+### D-055 · 2026-10-10 · guard · v9
+Symptom  同一条 `TIMEOUT` 除了"没写结果文件"之外什么都不说，而等人去看时壳早被杀掉了 —— 剩下只有一份"日志停在某处"。这轮 39 会话里 unwindowed 臂的 `06`（10:48:37）与 `07`（10:56:39）各钉死一次，两次都停在 `warmup took` 之后、**对话框根本没开**（日志里没有 `open():` 行）；我当场只能手工抢采 `state/wchan/utime`，而这些下一次就抢不到了
+Change   `run_probe` 走超时分支时**先快照再拆**：`ps -o pid,stat,time,wchan:26,rss,args` + `/proc/PID/wchan`、**相隔 2 秒的两次 majflt**（把"死锁"和"这台笔记本的换页风暴"分开的唯一便宜判据，两者处置完全相反）、线程名直方图、每线程 state/wchan、一次 `timeout 5 gdbus … Eval '1+1'` 的 rc（124=主循环不答，连 SIGTERM 也进不去）、`MemAvailable/SwapTotal/SwapFree`、那份 shell 日志最后 8 行，落 `$OUT/<config>-<name>.stall.txt`。轮询上限顺手做成 `CO_PROBE_POLL`（默认 90 拍 ×5s），目的是让这条仪器能在秒级被验，不必再等一次真的 450 秒
+Evidence L0 自验跑的是真实嵌套壳：临时探针 `GLib.usleep(60 * 1000000)` 阻塞主循环且不写结果 → `CO_PROBE_POLL=2 run.sh live 99` → `TIMEOUT after 10s` + 快照，快照如实写着 `SLl / wchan=hrtimer_nanosleep`、`eval rc=124`、`majflt 2 → 2`（**没在换页**）、`SwapFree 13168384 kB`；同一次还顺路撞上 D-053 的升级（`ignored SIGTERM, escalating to SIGKILL`）。临时探针已删（`ls probes | grep -c '^99'` = 0），`sh -n` 通过，原文留 `docs/reports/stall-snapshot-selftest.txt`
+Cost     多一个只在红路上跑的函数，绿路零开销。它改变不了钉死本身，只让下一次钉死能归因 —— 那两个钉死之后立刻重跑 `unwindowed 06 07`，两条**都 PASS**（1/1 与 6/6），所以这是间歇现象，不能按需复现
+Commit   3bbc8ae

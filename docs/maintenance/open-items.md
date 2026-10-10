@@ -18,15 +18,19 @@
   `shell-internals.mjs` 只数依赖，探针只在隔离库里跑，没人回头看日志内容。可做的形状是现成的 ——
   fixture 的正文是已知合成本文，L1 可以拿它当哨兵：任何会话的 shell 日志里出现 fixture 条目正文的
   一行就红。代价是每个会话多一次全文比对，并且要放过 id、时长、字节数这类合法数字。等你点头。
-- **horizontal 臂的 `06-ux-hidden` 会把嵌套壳的主线程钉死，本轮两次复现；而"只是插了标记行"的同一份代码 20 秒跑完（2026-10-10）**。
+- **探针超时会偶发把嵌套壳的主线程钉死；本会话见过 4 次，分布在三条臂里的两个探针上，而事后立刻重跑同一对探针又全绿（2026-10-10）**。
+  四次是：horizontal/`06-ux-hidden` 两次（09:52、10:25）、unwindowed/`06` 一次（10:48）、unwindowed/`07-wiring` 一次（10:56）；
+  同一轮里 live/06 与 horizontal/06 都 PASS，`unwindowed 06 07` 立刻重跑 → 1/1 与 6/6 双 PASS ⇒ **间歇、不可按需复现**。
   钉死时测到：主线程 `state=S`、`wchan=futex_do_wait`、6 秒内 `utime+stime` 一字不动（**不是在忙**）；`gdbus` 的 `Eval` 8 秒无应答；
-  SIGTERM 无效（要靠 D-053 的 KILL 升级才收得走）；日志停在 206 条 `Can't update stage views actor … needs an allocation` 之后完全沉默。
+  SIGTERM 无效（要靠 D-053 的 KILL 升级才收得走）；unwindowed 那两次日志停在 `warmup took` 之后、**对话框根本没开**（没有 `open():` 行），
+  horizontal 那次则走到过 open() 并在 206 条 `Can't update stage views actor … needs an allocation` 之后完全沉默。
   **已排除三条**：媒体时长 —— 在同一配置里给 `parse_launch` / `set_state(PAUSED)` / `query_duration` / 50ms 轮询 / `set_state(NULL)`
   逐步打点，全部 ≤100ms 返回且 `dur=3000000000` 正确；死循环 —— CPU 是冻住的；探针前缀撞车 —— 那是 D-054，且它的标志是 eval 路径不存在。
   **没排除**：06 的滚动阶段与"open 时 `page_size` 是 0"的组合。插了标记的那份跑起来是 `per=262 rowsPerViewport=5 max=64237`，
   也就是分配在 1.2 秒后就绪，所以嫌疑是"某一步的 `await` 在没有打点时永不落定"，而打点本身改变了 interleaving —— 经典海森堡。
-  为什么现在不动它：真实会话（竖向 + 固定行高）里没观察到；但**不能说产品面为零**，06 量的就是滚动，而横向是全新安装的默认布局。
-  往下只有两条路，都要你点头：(a) 认了偶发红，把 06 每个阶段加上"最多 N 步 / 最多 M 秒"的上限，并把上限本身做成判据（等于承认探针会改变现象）；
-  (b) 花若干个 8 分钟会话去二分。若只是想下次能直接归因，便宜的第三条是：`run_probe` 超时那一路顺手把主线程的
-  `state`/`wchan` 和线程名快照进 `$OUT`，这样不必现场抢。
+  **第三条已经做掉了**（D-055 / `3bbc8ae`）：`run_probe` 超时那一路现在先把现场写进 `$OUT/<config>-<name>.stall.txt`
+  ——`state`/`wchan`、相隔 2 秒的两次 `majflt`（死锁 vs 换页风暴的分判据）、线程名直方图、`Eval` 的 rc、`SwapFree`。
+  剩下两条仍要你点头：(a) 认了偶发红，给 06 每个阶段加"最多 N 步 / 最多 M 秒"的上限并把上限做成判据（等于承认探针会改变现象）；
+  (b) 花若干个 8 分钟会话去二分。真实会话（竖向 + 固定行高）没观察到，但 06 量的就是滚动，横向还是全新安装的默认布局，
+  所以不能记成"产品面为零"。
 - 给 agent 的硬规则（不许 rebase / 不许改 uuid / 不许引入构建链 / 提交规范）→ [AGENTS.md](../../AGENTS.md)

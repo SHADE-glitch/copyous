@@ -140,6 +140,14 @@ socket 放在确认之后——先删会把那个壳自己的 socket 一起删�
 正负对照：拿一个 `trap '' TERM` 的假壳跑旧脚本 → `WARN … survived SIGTERM` 且进程照旧活着
 （exit 1）；跑新脚本 → `escalating to SIGKILL` + `no … processes left`（exit 0）。
 
+超时那一支还留**现场**（D-055）：`$OUT/<config>-<name>.stall.txt`，内容是 `ps -o stat,time,wchan,rss`、
+`/proc/PID/wchan`、**相隔 2 秒的两次 `majflt`**、线程名直方图、每线程 state/wchan、一次
+`timeout 5 gdbus … Eval '1+1'` 的 rc、`MemAvailable/SwapTotal/SwapFree`，加那份日志的最后 8 行。
+两行 majflt 是分判据：**冻住 = 阻塞（死锁一类），猛涨 = 换页风暴**，处置完全相反，而这台机器两者都可能。
+轮询上限是 `CO_PROBE_POLL`（单位 5 秒，默认 90 拍 = 450 秒），有了它这条仪器能在秒级自验：
+临时探针 `GLib.usleep(60 * 1000000)` + `CO_PROBE_POLL=2` → 快照里 `wchan=hrtimer_nanosleep`、
+`eval rc=124`、`majflt 2 → 2`。探针钉死本身是间歇的（见 [open-items.md](open-items.md)），别把一次红当成结论。
+
 探针清单：
 
 | 探针 | 判什么 |
