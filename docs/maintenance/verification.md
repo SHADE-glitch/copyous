@@ -148,6 +148,54 @@ socket 放在确认之后——先删会把那个壳自己的 socket 一起删�
 临时探针 `GLib.usleep(60 * 1000000)` + `CO_PROBE_POLL=2` → 快照里 `wchan=hrtimer_nanosleep`、
 `eval rc=124`、`majflt 2 → 2`。探针钉死本身是间歇的（见 [open-items.md](open-items.md)），别把一次红当成结论。
 
+**探针 06 的阶段上限**（D-057）：`_preamble.js` 里的 `co.phase(name, budgetMs, fn)` 把 06 切成
+`open / scroll / blink / ease / thumb / pin / empty / close`，每段一条判据 `phase:<name>`，红法有**两条腿**，
+因为两种坏法互相看不见 —— **永不落定**由 deadline 抓到（`outcome=deadline`）；**同步超时**由实测毫秒抓到
+（`outcome=done` 但 `ms > budgetMs`），这种情况下 deadline 发不出来，因为主线程还在 C 里面。
+滚动循环另加 `STEP_CAP=400`（255 行 fixture 实测每趟约 82 步 `live` / 约 49 步 `horizontal`，400 远在两者之上）
+与判据 `scrollLoopNeverCapped`。
+`verdict.js` 多打一行 `phases: 名字=用时/预算ms`，红的那条自带观测值。
+预算按通过运行的阶段耗时放数倍定的：**它红只说明"去看这一段"**，不是性能回归；它也不消除钉死本身，
+真被 C 卡住那一路由上面的 stall 快照接管。逼红用的临时探针（`usleep 2s` 装进 500ms 预算、
+一段永不 resolve 的 promise 装进 1500ms 预算）报回
+`phase:overrun = {"outcome":"done","ms":2001,"budgetMs":500}` 与
+`phase:never = {"outcome":"deadline","ms":1501,"budgetMs":1500}`，整条 `FAIL 1/3 checks`、exit 1，
+而 450 秒的轮询一次都没用上。改 06 时**每条既有断言都还在**：`chk/rec/metric` 的键集合 `diff` 过，
+旧 16 个一个不少，只多了 `scrollLoopParams`（metric）与 `scrollLoopNeverCapped`（chk）。
+
+**钉死时也留得下阶段名**：`co.phase` 在开工前先 `print()` 一行 `[copyous-probe] phase <name> start budget=<M>ms`，
+快照因此多一节 `probe phases reached:`（把标记全捞出来再 `tail -12`）。这不是装饰 —— deadline 和结果文件
+在被 C 卡住那一路都不可能出现，日志里这一行是唯一还能说出"当时在跑哪一段"的东西。而它必须是单独一次 `grep`：
+咬齿用的临时探针（跑完即删，原文 `docs/reports/phase-marker-teeth.txt`）在一个 30 秒预算的阶段里先打 200 行
+警告再 `GLib.usleep(120 * 1000000)`，`CO_PROBE_POLL=2` → `TIMEOUT after 10s`，快照写着
+`wchan=hrtimer_nanosleep`（阻塞在 C 里）、`probe phases reached: phase marker-proof start budget=30000ms`，
+而同一份快照的 `log tail:` 只有噪声 192–197 那几行 —— **标记早被淹了**，只看日志尾部等于没看。
+
+上限之后连着跑了**两轮** `run.sh all 06`，读数与那条钉死快照存 `docs/reports/06-phasebudget-three-arms.txt`：
+
+- **12:06 那轮**：`live` **15/15**（`open=4934`、`scroll=16024`、`blink=2841`、`ease=1216`、`thumb=1316`、
+  `pin=1060`、`empty=1031`，预算依次 30000ms/60000ms/20000ms/15000ms×4；`per=182 rowsPerViewport=3 max=45110`）、
+  `unwindowed` **5/5**（`open=6736`、`scroll=10234`、`close=604`）、`horizontal` **又钉死一次**（450s 轮询用满）。
+  这一轮只有 stall 快照原样留存（harness 的结果文件是固定路径，被下一轮覆盖了），所以那几个毫秒数是**当场读过、事后抄录**；
+  快照本身写着 `futex_do_wait`、`majflt 9 → 9` 不动 ⇒ **不是换页**、`SwapFree 14472896 kB`、线程表里有
+  `wavparse0:sink` 与 `typefind:sink`、`eval rc=124`。**阶段上限对这一种无效**：主线程被 C 卡住时 deadline 和
+  结果文件都不可能出现，抓到它的仍然是 D-055 那份快照。
+- **12:32 那轮**：三条臂**全绿** —— `live` **15/15**（`open=4285`、`scroll=16860`、`blink=2937`、`ease=1208`、
+  `thumb=1303`、`pin=1057`、`empty=1033`）、`unwindowed` **5/5**（`open=7056`、`scroll=12960`、`close=603`）、
+  `horizontal` **15/15**（`open=4427`、`scroll=12439`、`blink=4272`、`ease=1236`、`thumb=1502`、`pin=1059`、
+  `empty=1031`，`per=262 rowsPerViewport=5 max=64237`），五种打印形态各 0 条。
+  ⇒ 上限没有把那条间歇钉死变成常驻红；`horizontal` 在同一件事上第三次绿，也再次证明它不可按需复现。
+
+顺着那条快照做过一次定向实验（临时探针复刻 `tryCreateMediaFileInfo` 的序列，跑完即删，原文
+`docs/reports/media-race-concurrency.txt`）：**两条 pipeline 同时在飞、各带那圈 50ms 轮询，53ms 双双落定**
+（`PASS 2/2`，判据 `bothPollsSettle`）；不轮询时 12ms 就返回、而且本来就是 `ok=false`、`dur=-1`
+—— 立即查询取不到时长，产品代码那圈轮询不是可有可无的装饰。⇒ "并发把主线程锁死"这个形状**被否证**，
+钉死需要 06 更完整的上下文才出现。别把这两件事写成同一个结论。
+
+写这种定向实验时的一条仪器坑：在 Eval 里 `await import('gi://Gst')` 而**没有先 enable()** 时，
+那个 promise 永不落定（探针一条标记都没打，主循环空闲在 `poll_schedule_timeout`），
+换 `imports.gi.Gst` 就正常。产品代码里的动态 import 能工作是它在模块上下文里 —— 两回事。
+
 探针清单：
 
 | 探针 | 判什么 |
