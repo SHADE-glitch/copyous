@@ -8,6 +8,13 @@
 clipboard.json
 custom-theme.css
 
+# Machine-wide runtime ignore list (agent-standards/STANDARD.md §7): the
+# database family is already covered above; this adds the Python tooling.
+.venv/
+venv/
+__pycache__/
+.pytest_cache/
+
 # Phase evidence for this maintenance fork: PROFILE/AUDIT/PLAN/STATE/REVIEW under
 # docs/reports/. This repo is public and those files quote raw journal lines, live
 # dconf values and the on-disk layout of the plaintext clipboard store, so they
