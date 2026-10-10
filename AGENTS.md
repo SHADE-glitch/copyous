@@ -59,6 +59,13 @@ that must not be broken, not the measurements.
   only manufactures red that has nothing to do with the code. Same class: a probe prefix matching
   two files builds a nonexistent eval path, so `run.sh` rejects it before `up.sh`, not after
   450 seconds of waiting. Numbers and the paired controls: `docs/maintenance/verification.md`.
+- **A destructive check restores the bytes it read *this run*, never a cached snapshot.** The teeth harness for
+  the doc-equivalence proof kept its "pristine" copy in `/tmp` and wrote that back after every case, so it
+  silently rolled back every later edit to the script under test -- two registry declarations and one exemption
+  clause on 2026-10-10 -- while printing `restored byte-identical: True`, because what it compared against was
+  its own stale copy. Read the pristine text from the file at run start, restore to *that*, and assert after the
+  whole run that the file is unchanged. Same family: `sh -n` on this box did not report a dash syntax error in a
+  multi-line `for` list, so a batch script is only proven once it actually starts.
 - **No shell-side file may statically `import` a typelib the shell does not guarantee.** The
   guaranteed set is what the shell's own modules import (`gresource list + extract` over
   `libshell-NN.so`), not a guess: Gda, GSound and Gst are outside it. A static import of an

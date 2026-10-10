@@ -18,10 +18,11 @@
   `shell-internals.mjs` 只数依赖，探针只在隔离库里跑，没人回头看日志内容。可做的形状是现成的 ——
   fixture 的正文是已知合成本文，L1 可以拿它当哨兵：任何会话的 shell 日志里出现 fixture 条目正文的
   一行就红。代价是每个会话多一次全文比对，并且要放过 id、时长、字节数这类合法数字。等你点头。
-- **探针超时会偶发把嵌套壳的主线程钉死；本会话见过 5 次，跨三条臂里的两个探针，而同一对探针立刻重跑又全绿（2026-10-10）**。
-  五次是：horizontal/`06-ux-hidden` 三次（09:52、10:25、12:06）、unwindowed/`06` 一次（10:48）、unwindowed/`07-wiring` 一次（10:56）；
-  加上装上阶段上限后 `run.sh all 06` 的两轮：12:06 那轮 live **15/15**、unwindowed **5/5** 绿着而 horizontal 又钉，
-  12:32 那轮**三条臂全绿**（horizontal 也 **15/15**）⇒ **间歇、不可按需复现**，读数 `docs/reports/06-phasebudget-three-arms.txt`。
+- **探针超时会偶发把嵌套壳的主线程钉死；本会话见过 7 次，其中两次有阶段名，两次都落在 `scroll`（2026-10-10）**。
+  七次是：horizontal/`06-ux-hidden` 四次（09:52、10:25、12:06、13:17）、`live`/`06` 一次（13:05）、
+  unwindowed/`06` 一次（10:48）、unwindowed/`07-wiring` 一次（10:56）。同一件事立刻重跑又全绿：
+  `run.sh all 06` 里 12:32 那轮**三条臂全绿**、批量 1 的 12 跑里 11 跑绿 ⇒ **间歇、不可按需复现**，
+  读数 `docs/reports/06-phasebudget-three-arms.txt`、`/tmp/bisect-06.log`。
   钉死时测到：主线程 `state=S`、`wchan=futex_do_wait`、6 秒内 `utime+stime` 一字不动（**不是在忙**）；`gdbus` 的 `Eval` 8 秒无应答；
   SIGTERM 无效（要靠 D-053 的 KILL 升级才收得走）；unwindowed 那两次日志停在 `warmup took` 之后、**对话框根本没开**（没有 `open():` 行），
   horizontal 那次则走到过 open() 并在 206 条 `Can't update stage views actor … needs an allocation` 之后完全沉默。
@@ -30,17 +31,14 @@
   （`PASS 2/2`；不轮询时 12ms 就返回，且 `ok=false`、`dur=-1` —— 立即查询本来就取不到时长），
   原文 `docs/reports/media-race-concurrency.txt` ⇒ 这个形状**不成立**；死循环 —— CPU 是冻住的；
   探针前缀撞车 —— 那是 D-054，且它的标志是 eval 路径不存在。
-  最新一次的快照还排除换页：`majflt 9 → 9`、`SwapFree 14472896 kB`，而线程表里有 `wavparse0:sink` 与 `typefind:sink`。
-  **没排除**：06 的滚动阶段与"open 时 `page_size` 是 0"的组合。插了标记的那份跑起来是 `per=262 rowsPerViewport=5 max=64237`，
-  也就是分配在 1.2 秒后就绪，所以嫌疑是"某一步的 `await` 在没有打点时永不落定"，而打点本身改变了 interleaving —— 经典海森堡。
-  **第三条已经做掉了**（D-055 / `3bbc8ae`）：`run_probe` 超时那一路现在先把现场写进 `$OUT/<config>-<name>.stall.txt`
-  ——`state`/`wchan`、相隔 2 秒的两次 `majflt`（死锁 vs 换页风暴的分判据）、线程名直方图、`Eval` 的 rc、`SwapFree`。
-  剩下两条：**(a) 已做掉**（D-057）—— 06 切成八个带预算的阶段 + 滚动循环 `STEP_CAP`，两条腿
-  （永不落定 / 同步超时）都逼红过；但它对**这一种**钉死无效，必须写清：主线程被 C 卡住时 deadline
-  发不出来、结果文件也不会写。补上的不是 deadline 而是**开工前打印的阶段标记** —— `co.phase` 先
-  `print()` 一行 `[copyous-probe] phase <name> start …`，(c) 那份快照多一节 `probe phases reached:`
-  把它捞出来（必须在 200 行噪声警告里 `grep`，只看日志尾部必然看不见）。这样下一次钉死至少知道是哪一段，
-  而 **(b) 二分**要切的边界也有了 —— (b) 还是那件事：花若干个 8 分钟会话逐段排除，等点头。
-  真实会话（竖向 + 固定行高）没观察到，但 06 量的就是滚动，横向还是全新安装的默认布局，
-  所以不能记成"产品面为零"。
+  最新一次的快照还排除换页：`majflt 9 → 9` / `majflt 8 → 8`、`SwapFree 14472896 kB`，而线程表里有 `wavparse0:sink` 与 `typefind:sink`。
+  **归因到哪一步了**（D-059）：`co.phase` 开工前打一行标记、快照多一节 `probe phases reached:` 把它从噪声里捞出来，
+  于是 13:05 那次报出 `open` + `scroll`（没有后续），13:17 那次报出 `scroll pass=0 step=38…49` ——
+  横向 `per=262 rowsPerViewport=5 max=64237` 的循环上界正是 i=49，也就是**"滚到最底"那一步**。
+  两次带名字的样本都在 `scroll`，但**这不等于原因就在这里**：跳掉 `scroll` 的 5 跑全绿，在这个发生率下不构成判定。
+  **还没分开的那件事**：那一步里卡的是 `adj().value=` 触发的重排，还是随后的 `sleep` 没回来 —— 现在每步打两条标记
+  （`step=i` 与 `step=i assigned value=…ms`），批量 2 的 30 跑就是冲它去的。
+  另外三条仪器侧的已做掉：(c) 超时快照（D-055 / `3bbc8ae`）、(a) 阶段预算（D-057）、二分用的
+  `CO_SKIP_PHASES` 旋钮与它的守卫（D-059）。真实会话（竖向 + 固定行高）没观察到，但 06 量的就是滚动，
+  横向还是全新安装的默认布局，所以不能记成"产品面为零"。
 - 给 agent 的硬规则（不许 rebase / 不许改 uuid / 不许引入构建链 / 提交规范）→ [AGENTS.md](../../AGENTS.md)

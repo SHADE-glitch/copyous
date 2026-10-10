@@ -196,6 +196,58 @@ socket 放在确认之后——先删会把那个壳自己的 socket 一起删�
 那个 promise 永不落定（探针一条标记都没打，主循环空闲在 `poll_schedule_timeout`），
 换 `imports.gi.Gst` 就正常。产品代码里的动态 import 能工作是它在模块上下文里 —— 两回事。
 
+**正文哨兵**（D-058，`run.sh` 最后一段）：五种打印形态数的是词类，**没有一种读内容**，而本仓修过的两处
+journal 泄漏落到日志就是一行正常正文。跑法就是平时那句 `test/headless/run.sh all`，绿路多一行
+`fixture body text in session logs: 0 line(s) across N session(s)`。要点三条，都是会被偷懒实现漏掉的：
+
+1. 短语表**从 `make-fixture.js` 自己抽**（`test/headless/fixture-phrases.mjs`：`CJK` / `LATIN` 两个池
+   加三条结构标记，共 14 条），不是抄进脚本的列表 —— 抄的列表会和 fixture 各自漂移，而漂移的方向是"永远绿"。
+   抽不出池、抽不出字面量、条数少于 8 都 exit 3，`run.sh` 把"抽不出表"记 FAIL。
+2. 命中只报**文件、行号、中了哪条短语**（`grep -a -H -n -o -F`），**不打印那一行**。`-H` 是有意的：
+   只有一份日志时 grep 默认省掉文件名，报告就成了一句 `23:会议纪要…`，看不出是哪个会话漏的。
+   报出来的那半句只会是**清单里的 fixture 短语**（哨兵只可能匹配到这些），所以这道闸门自己不会变成它查的泄漏。
+   咬齿现场：`/tmp/copyous-harness/out/live-99-leak.shell.log:16:会议纪要：本地生活服务平台改版`。
+3. 每次跑先清 `$OUT/*.shell.log`。过去"跨所有会话"其实是"跨这个目录历史上所有会话"——本轮清点出
+   **50 份**历史日志混在判据里，一个上周删掉的诊断探针能把红留到今天。
+
+咬齿（都在真嵌套壳上）：临时探针（前缀 `99-`，跑完即删，所以这里不写文件名）故意打一行 fixture 正文 →
+探针自己 `PASS 1/1`，
+闸门报 `1 line(s) across 1 session(s)` 且 `RESULT: FAIL`（全文 `docs/reports/sentinel-teeth.txt`）；
+删掉之后下一次跑 `0 line(s) across 1 session(s)` 且 PASS —— 这两条一起证明红来自哨兵、且不粘连历史。
+抽表器的三条失败模式各造一次（池改名 / 正文措辞改 / 代码标记改），三次都 `exit=3` 带指名原因，
+每次跑完逐字节还原并断言 `git status --porcelain test/headless/make-fixture.js` 为空。
+
+**它管哪一段要说清**：哨兵量的是**嵌套壳会话日志**里的 fixture 正文，L1 一层。真实会话（L2）里没有一份
+"已知正文"可以拿来当清单 —— 那是用户的真剪贴板，所以 L2 那一侧仍然靠形态计数加上"本仓不打正文"这两条
+（`clipboardDialog` / `actionMenu` 的修法本身），不是这道闸门的覆盖面。
+
+**二分用的旋钮**（D-059）：`CO_SKIP_PHASES=scroll,blink test/headless/run.sh live 06` 把点名的阶段整块切掉，
+阶段表里记成 `scroll=0/60000ms(skipped)`。守卫 `everyRequestedSkipRan` 在 `done()` 里比对"请求跳的"和
+"真跳了的"，名字打错就 FAIL —— 没有这条，一个拼错的阶段名会换来一次什么都没二分的绿。
+滚动循环里另外每步打一行 `[copyous-probe] scroll pass=P step=S`：**必须打在迈步之前**，钉死发生在某一步中间，
+事后打印永远不会出现。
+
+**钉死归因到哪一步了**（D-059，批量 1）：
+
+阶段标记 + `CO_SKIP_PHASES` 装上之后的第一批十二跑（`/tmp/bisect-06.log`，13:12–13:25）：
+
+| 跑 | 配置 | scroll | 结果 |
+| --- | --- | --- | --- |
+| 1–5 | `live` | 在内 | 5 跑全绿（`scroll` 15.9–16.9 秒，预算 60000ms 没用满） |
+| 6–10 | `live` | 跳掉 | 5 跑全绿，阶段表写着 `scroll=0/60000ms(skipped)` |
+| 11 | `horizontal` | 在内 | 绿 |
+| 12 | `horizontal` | 在内 | **钉死**，快照 `docs/reports/bisect-stall-run12-horizontal.txt` |
+
+第 12 跑的标记段是 `scroll pass=0 step=38…49`，而横向这套几何
+（`per=262`、`rowsPerViewport=5`、`max=64237`）的循环上界正是 `i=49`：`49×1310=64190 ≤ 64237 < 50×1310`。
+**也就是"把列表滚到最底"的那一步**。加上 13:05 那次 `live` 臂（标记只有 `open` + `scroll` 两行，
+`docs/reports/stall-live-06-named-scroll.txt`），七次样本里两次带得上名字，两次都在 `scroll`。
+
+**这两条合起来还不构成判定**，写清楚免得下次有人当结论用：发生率按这批大约 1/6–1/7，
+"跳掉 scroll 的 5 跑全绿"在 p≈0.15 下本身就有 ≈0.45 的概率发生，p≈0.25 时也有 ≈0.73 ⇒ 与"scroll 不是必要条件"**分不开**。
+下一步要分开的是**同一跳里的两半** —— `adj().value=` 那次重排，还是随后的 `sleep` 没回来；
+探针现在每步打两条标记（`step=i` 与 `step=i assigned value=…ms`），30 跑的一批正在量它。
+
 探针清单：
 
 | 探针 | 判什么 |
