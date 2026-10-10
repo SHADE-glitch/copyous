@@ -1,146 +1,146 @@
-# journal 怎么读、哪些字段能当回归判据
+# How to read the journal, and which fields can serve as regression criteria
 
-一条主线：**先拿到真实会话 shell 的 PID，再按 `_PID=` 过滤**。这个文件写清五种打印形态、归因规则，以及哪些数看着像结论其实是噪声。成本的读法与口径在 [cost-measurement.md](cost-measurement.md)。
+One thread runs through it: **get the real session shell's PID first, then filter by `_PID=`**. This file lays out the five print shapes, the attribution rules, and which numbers look like conclusions but are noise. How cost is read and its conventions are in [cost-measurement.md](cost-measurement.md).
 
-> **来历**：从 `MAINTENANCE.md`（拆分前 520 行 / 12 节）搬来的第 4 节与第 5 节（RSS 与滚动成本两条移入 cost-measurement.md）。搬动是逐字复制，
-> 只有相对链接按新目录层级改写过。这个文件是这些事实的唯一主人，别在别处复述一遍。
+> **Origin**: sections 4 and 5, moved verbatim from `MAINTENANCE.md` (520 lines / 12 sections before the split) (the RSS and scrolling-cost entries moved into cost-measurement.md). The move was a verbatim copy;
+> only the relative links were rewritten for the new directory level. This file is the sole owner of these facts; do not restate them elsewhere.
 
 
-## 4. 日志怎么读
+## 4. How to read the log
 
-先拿到**真实会话**的 shell PID —— 这一步有个坑：
+Get the **real session**'s shell PID first — this step has a pit:
 
 ```sh
-# 错：会抓到 test/headless 遗留的 headless shell，内存数字全是它的
+# Wrong: catches the headless shell left behind by test/headless; every memory number is its own
 pgrep -x gnome-shell
 
-# 对：真实会话 shell 带 --mode
+# Right: the real session shell carries --mode
 pgrep -af "gnome-shell --mode"
-# 或者显式排除
+# or exclude explicitly
 pgrep -x gnome-shell -a | grep -v -- --headless
 ```
 
-判据：命令行里有 `--headless --wayland-display=wayland-copyous-harness` 的是测试进程，不是你的会话。
+Criterion: a command line containing `--headless --wayland-display=wayland-copyous-harness` is a test process, not your session.
 
-**`logger.error` 会被打成 `GNOME Shell-CRITICAL`**，`logger.warn` 不会。所以"可恢复的环境状况"
-一律 `warn`，只有真坏了才 `error` —— 否则上面那条"CRITICAL 必须是 0"的闸门会被一次合法的
-失败永久染红。踩点实例：`open()` 抢模态被拒（别的客户端持有 SYSTEM_MODAL）原本走 `error`，
-探针 11 故意造出这条路径时就看见 `[Copyous] [Copyous] open(): pushModal grab failed`
-以 CRITICAL 落盘；改成 `warn` 之后同一次运行 CRITICAL 归零。**顺带**：那条消息自己带了
-`[Copyous] ` 前缀，而 logger 已经加过一次，日志里是双份 —— 消息体不要再写前缀。
+**`logger.error` renders as `GNOME Shell-CRITICAL`**; `logger.warn` does not. So a "recoverable environment condition"
+is always `warn`, and only a real break is `error` — otherwise the "CRITICAL must be 0" gate above gets permanently
+reddened by one legitimate failure. Trap instance: `open()`'s rejected grab (another client holding SYSTEM_MODAL) used to go through `error`,
+and when probe 11 deliberately produced that path we saw `[Copyous] [Copyous] open(): pushModal grab failed`
+land as a CRITICAL; after changing it to `warn`, the same run's CRITICAL count went to zero. **By the way**: that message carried its own
+`[Copyous] ` prefix while logger already adds one, so the log showed it doubled — do not write the prefix in the message body.
 
-2026-10-10 把整类扫了一遍（`rg 'logger\.error' extension.js lib` 去掉 prefs），**9 处降为 `warn`**：
-Gda typelib 缺席、媒体时长探测失败、文件信息与文件预览建不出来、图片通知解码两处、链接元数据与
-链接缩略图两处、stylesheet 载入失败、`makeStoredPrivate()` 没改成权限。留下的 `error` 只满足一条
-标准：**用户的库或数据真的受损**（修剪失败、条目类型认不出、建条目抛异常、Gda 与 JSON 起不来、
-删图与写库失败）。扫描时一个手误值得记在这里：`rg '\berror\('` 看不见 `.catch(error)` 这种
-**把函数当回调传**的用法，于是删掉那行绑定把 enable() 直接打挂 —— 是 L1 闸门当场报的
-`deferred enable failed: ReferenceError: error is not defined`，而 L0 看不见（`extension.js`
-在 Node 里加载不了）。同一次扫描还查出两条**把用户内容写进 journal** 的调用（见 AGENTS.md 的
-隐私条），改法是只留类型与 id。
+On 2026-10-10 the whole class was swept (`rg 'logger\.error' extension.js lib`, minus prefs), **9 sites downgraded to `warn`**:
+Gda typelib missing, media-duration probing failing, file info and file preview failing to build, two image-notification decodes, link metadata and
+link thumbnail two cases, stylesheet load failure, `makeStoredPrivate()` not changing permissions. The remaining `error`s meet a single
+standard: **the user's library or data is genuinely damaged** (prune failure, unrecognised entry type, entry-build exception, Gda and JSON failing to start,
+image-delete and DB-write failures). One slip during the sweep is worth recording here: `rg '\berror\('` cannot see `.catch(error)` —
+**passing a function as a callback** — so deleting that binding broke enable() outright, caught live by the L1 gate as
+`deferred enable failed: ReferenceError: error is not defined`, which L0 cannot see (`extension.js`
+cannot be loaded in Node). The same sweep also turned up two calls that **wrote user content into the journal** (see AGENTS.md's
+privacy item); the fix was to keep only type and id.
 
 ```sh
 LOG='journalctl --no-pager -o cat'
-$LOG /usr/bin/gnome-shell | grep -a '\[timing\]'          # 全部计时
-$LOG /usr/bin/gnome-shell | grep -acE 'CRITICAL|JS ERROR'  # 必须是 0
+$LOG /usr/bin/gnome-shell | grep -a '\[timing\]'          # all timings
+$LOG /usr/bin/gnome-shell | grep -acE 'CRITICAL|JS ERROR'  # must be 0
 ```
 
-**第三种打印形式**（2026-10-09 血泪）：没人 `.catch` 的 promise 被拒时 GJS 打
-`Unhandled promise rejection`，既不是 CRITICAL 也不是 JS ERROR —— `run.sh` 现在单独数它。
-踩点实例：一份 `{}` 的 `actions.json` 让 `actionMenu.js` 与 `shortcuts.js` 各自的监听回调抛了
-两次，条目菜单和动作快捷键当场失效整整 1.5 小时，而所有闸门一直是绿的。
-`run.sh` 还有一条**用户数据绊线**：跑之前对 `~/.config/copyous@local` 取 `ls -l | cksum`，
-跑完比一遍，不同就 `USER DATA TOUCHED` 并整轮判失败（`~/.local/share` 故意不比：真实会话一边
-剪贴板一边写它，永远不同 = 永远假红）。
+**The third print form** (2026-10-09, learned the hard way): when a promise nobody `.catch`es is rejected, GJS prints
+`Unhandled promise rejection`, neither CRITICAL nor JS ERROR — `run.sh` now counts it separately.
+Trap instance: a `{}` `actions.json` made `actionMenu.js` and `shortcuts.js` each throw in their listener callbacks
+twice, the entry menu and action shortcuts failing for a full 1.5 hours while every gate stayed green.
+`run.sh` also has a **user-data tripwire**: before running it takes `ls -l | cksum` of `~/.config/copyous@local`,
+compares after the run, and on a difference prints `USER DATA TOUCHED` and fails the whole round (`~/.local/share` is deliberately not compared: the real session
+writes it while copying, so it always differs = always a false red).
 
-**第四种：访问已 dispose 的对象是 warning。** 得单独数，而且必须按 pid 过滤：
+**The fourth: accessing a disposed object is a warning.** It must be counted separately, and filtered by pid:
 
 ```sh
-# ⚠ 上面那条数**不够**：GJS 把访问已 dispose 对象打成 warning，两个关键词都不匹配。
-# 单独数它，而且必须按 pid —— logout 时上一个 shell 的拆除会刷一批，那些不归本仓库：
-journalctl --no-pager -o cat --since="<本次登录时间>" _PID=<pid> | grep -ac 'has been already disposed'
-# 归因看两处：栈帧里有没有 extensions/copyous@local/，消息头有没有点名 Gjs_common_gjs_<Class>
-grep -E '^(Rss|Swap)' /proc/<pid>/smaps_rollup             # 常驻 / 被换出
+# ⚠ The line above is **not enough**: GJS prints access to a disposed object as a warning, matching neither keyword.
+# Count it separately, and by pid — a logout flushes a batch from the previous shell's teardown, and those are not this repo's:
+journalctl --no-pager -o cat --since="<this login time>" _PID=<pid> | grep -ac 'has been already disposed'
+# Attribution looks at two places: whether a stack frame contains extensions/copyous@local/, and whether the message header names Gjs_common_gjs_<Class>
+grep -E '^(Rss|Swap)' /proc/<pid>/smaps_rollup             # resident / swapped out
 awk '{print $12}' /proc/<pid>/stat                          # majflt
 ```
 
-**第五种：C 侧的 GLib 断言。2026-10-10 才发现，前四种形态全都看不见它** —— GLib 自己写的失败
-**消息体里根本没有 "CRITICAL" 这个词**，域名和级别在 journald 的结构字段里
-（`PRIORITY=4`、`GLIB_DOMAIN=GLib-GObject`），所以按词计数的闸门一条都数不到：
+**The fifth: C-side GLib assertions. Only discovered 2026-10-10; all four earlier shapes cannot see it** — a failure written by GLib
+itself has **no "CRITICAL" word in the message body at all**; the domain and level live in journald's structured fields
+(`PRIORITY=4`, `GLIB_DOMAIN=GLib-GObject`), so a word-counting gate counts none of them:
 
 ```sh
-# 本轮真实会话（PID 3147，08:03 起）现场三行
-journalctl -b -o cat /usr/bin/gnome-shell | grep -acE 'CRITICAL|JS ERROR'   # 1  ← dash.js 那条，不是本仓
+# three live lines from this round's real session (PID 3147, started 08:03)
+journalctl -b -o cat /usr/bin/gnome-shell | grep -acE 'CRITICAL|JS ERROR'   # 1  ← the dash.js one, not this repo
 journalctl -b -o cat /usr/bin/gnome-shell | grep -acE 'assertion .* failed' # 1  ← g_object_unref: G_IS_OBJECT
 journalctl -b all -o cat /usr/bin/gnome-shell | grep -acE "assertion .* failed|g_return_|has been already disposed"  # 1720
 ```
 
-按家族分（跨 boot 总数）：`clutter_text_set_text` / `clutter_text_get_text` / `clutter_text_get_editable`
-的 `CLUTTER_IS_TEXT (self)` 各 190（一次写挂三个，所以是 190 个事件），
-`meta_window_set_stack_position_no_sync` 180，`pango_layout_get_cursor_pos` 164，
-`St.Label … has been already disposed` 60，`g_object_unref: G_IS_OBJECT` 27。
+By family (cross-boot totals): `clutter_text_set_text` / `clutter_text_get_text` / `clutter_text_get_editable`'s
+`CLUTTER_IS_TEXT (self)` at 190 each (one failure writes three, so 190 events),
+`meta_window_set_stack_position_no_sync` 180, `pango_layout_get_cursor_pos` 164,
+`St.Label … has been already disposed` 60, `g_object_unref: G_IS_OBJECT` 27.
 
-**归因结论：这批不是本仓库的**，两条独立证据：本仓 shell 侧代码 `\.unref\(|g_object_unref`
-命中 **0**（GJS 里对 null 调 unref 抛 TypeError，打不出 GLib 断言）；`has been already disposed`
-附近栈帧按归属分组为 shell ui 1664 / Vitals 1590 / notification-grouper 159 / caffeine 105 /
-blur-my-shell 8 / macos-dock 1，**copyous 0**。本轮 boot 里这五个家族 **0 条**，最近一次
-`CLUTTER_IS_TEXT` 是 2026-10-09 13:22:16 —— 在那之前的 shell 里。
+**Attribution conclusion: this batch is not this repo's**, on two independent pieces of evidence: this repo's shell-side code has `\.unref\(|g_object_unref`
+hits of **0** (in GJS, calling unref on null throws a TypeError and cannot print a GLib assertion); and the stack frames near
+`has been already disposed` group by owner as shell ui 1664 / Vitals 1590 / notification-grouper 159 / caffeine 105 /
+blur-my-shell 8 / macos-dock 1, **copyous 0**. In this boot these five families had **0** lines, the most recent
+`CLUTTER_IS_TEXT` being 2026-10-09 13:22:16 — in a shell before that.
 
-两个查询坑顺手记下：**大小写** —— `grep 'Assertion'` 数到 0，而消息体是小写 `assertion`；
-**`grep -c` 计数为 0 时自己 exit 1**，会把 `&&` 链断在那里，别把"链断了"读成"这条查过了"。
+Two querying pitfalls, recorded along the way: **case** — `grep 'Assertion'` counts 0, while the message body is lowercase `assertion`;
+and **`grep -c` exits 1 on a zero count**, breaking the `&&` chain right there — do not read "the chain broke" as "this one was checked".
 
-`run.sh` 现在把第四、第五种都进闸门。断言行同 disposed 一样分**总数 / 6 行内出现本仓栈帧或
-`Gjs_common_gjs_` / 无法归因**三档，只有中间那档判红：C 侧断言不带 JS 栈，硬把它们全算成自己的
-就天天假红，而喊狼的闸门一周内会被关掉。合成日志上验过归因：纯外来 → `1 0`，紧跟本仓栈帧 →
-`1 1`，混合 → `2 1`（2026-10-10，`assertion .* failed|g_return_[A-Za-z_]+_fail|GLib-[A-Za-z]+-CRITICAL`）。
+`run.sh` now gates both the fourth and fifth. Assertion lines, like disposed, split into three tiers — **total / a repo stack frame or
+`Gjs_common_gjs_` within 6 lines / unattributable** — and only the middle tier goes red: C-side assertions carry no JS stack, so counting them all as our own
+would false-alarm daily, and a gate that cries wolf gets turned off within a week. Attribution was verified on synthetic logs: pure foreign → `1 0`, immediately followed by a repo stack frame →
+`1 1`, mixed → `2 1` (2026-10-10, `assertion .* failed|g_return_[A-Za-z_]+_fail|GLib-[A-Za-z]+-CRITICAL`).
 
-**第六道闸门看内容，不看形态**（D-058）。上面五种数的是"一类词出现几次"，没有一种读字。而本仓修过的两处
-journal 泄漏 —— `clipboardDialog.js` 打印整个 entry 对象、`actionMenu.js` 打印动作的 stderr —— 恰好都不属于
-那五种：那是一行**正常正文**，形态上和无辜的日志毫无区别。所以 `run.sh` 末尾加了一道**正文哨兵**：短语表由
-`test/headless/fixture-phrases.mjs` **从 `make-fixture.js` 自己抽**（`CJK` / `LATIN` 两个短语池，加上生成
-代码体的三条结构标记），抽不到就 exit 3，而 `run.sh` 把"抽不出表"记成 FAIL 而不是绿 —— 一份空清单会让哨兵
-永远绿，那比没有哨兵更坏。命中时只报**文件、行号、中了哪条短语**，绝不打印那一行本身：这道闸门自己不能变成
-它要查的那个泄漏。
+**A sixth gate reads content, not shape** (D-058). The five above count "how many times a word class appears", and none reads characters. The two
+journal leaks this repo fixed — `clipboardDialog.js` printing the whole entry object and `actionMenu.js` printing the action's stderr — happen to belong to none of
+those five: it is a line of **ordinary body text**, shape-indistinguishable from an innocent log. So `run.sh` gains a **body-text sentinel** at the end: the phrase table is
+**extracted by `test/headless/fixture-phrases.mjs` from `make-fixture.js` itself** (two phrase pools, `CJK` / `LATIN`, plus the three structural markers of the generated
+code bodies); failing to extract exits 3, and `run.sh` records "could not extract the table" as FAIL rather than green — an empty list would leave the sentinel
+permanently green, which is worse than no sentinel. On a hit it reports only **file, line number, which phrase matched**, never printing the line itself: this gate must not become
+the very leak it checks.
 
-放过的东西是设计的一部分：匹配的是正文短语而不是数字，所以 id、时长、字节数、`250 matching` 这类合法数字
-不会红；代价是每个会话多一次 `grep -F`（固定串，不走正则）。
+What it lets through is part of the design: what is matched is body phrases, not digits, so legitimate numbers like ids, durations, byte counts, `250 matching`
+do not go red; the cost is one extra `grep -F` per session (fixed strings, no regex).
 
-配套改了一处仪器口径：`$OUT/*.shell.log` 过去只按 `(config, probe)` 同名覆盖、**从不清理**，于是"跨所有会话"
-实际一直是"跨这个目录历史上所有会话"——一个上周删掉的诊断探针能把一条红留到今天。现在每次跑先清 `*.shell.log`，
-一道闸门量的就是它这一轮跑出来的那些会话（`*.json` 与 `*.stall.txt` 不动，前者本来就读最近一份，后者要留着看）。
+An instrument-scope change came with it: `$OUT/*.shell.log` used to be overwritten by same-named `(config, probe)` and **never cleaned**, so "across all sessions"
+really always meant "across every session this directory has ever held" — a diagnostic probe deleted last week could leave a red alive today. Now each run clears `*.shell.log` first,
+and a gate measures exactly the sessions it produced this round (`*.json` and `*.stall.txt` untouched; the former is read as the latest anyway, the latter is kept for inspection).
 
 
-字段含义：
+Field meanings:
 
-| 日志 | 含义 | 注意 |
+| Log | Meaning | Note |
 | --- | --- | --- |
-| `loaded N entries in Xms` | DB 查询本身 | 纯 I/O + 建行 |
-| `filled N entries in Xms` | 注册 N 条 entry 并给窗口内的建 actor | **窗口化下这是最能反映收益的一条** |
-| `warmup took Xms` | 启动期预热 | 窗口化下只热几个，不是全部 |
-| `open(): show` | 打开到 `show()` 返回 | ⚠ 不能单独当判据，见本文「哪些数能当回归判据」 |
-| `open(): pushModal` | 抢模态 | |
-| `open(): TTI (main loop free)` | 主循环重新空闲 | **判回归看这个** |
-| `open(): idle after redraw` | 重绘后空闲 | ⚠ 首开那次被渐进揭示的 gap 污染 |
-| `page_size Ppx, N matching, M materialized` | 视口高 / **过滤后**条数 / 建了 actor 的条数 | 见下方"matching 不是总数" |
-| `progressive reveal: ...` | 四段互斥账 `work + gap + pseudo + setup` | 窗口化下这条不该再出现 |
+| `loaded N entries in Xms` | The DB query itself | Pure I/O + row build |
+| `filled N entries in Xms` | Registers N entries and builds actors for those in the window | **Under windowing this is the line that best reflects the gain** |
+| `warmup took Xms` | Startup warm-up | Under windowing it warms only a few, not all |
+| `open(): show` | From open to `show()` returning | ⚠ Cannot be a criterion on its own, see "which numbers can be regression criteria" below |
+| `open(): pushModal` | Grab the modal | |
+| `open(): TTI (main loop free)` | Main loop idle again | **Watch this to judge a regression** |
+| `open(): idle after redraw` | Idle after redraw | ⚠ The first-open one is polluted by the progressive-reveal gap |
+| `page_size Ppx, N matching, M materialized` | Viewport height / **post-filter** count / actors built | See "matching is not the total" below |
+| `progressive reveal: ...` | The four-way mutually exclusive ledger `work + gap + pseudo + setup` | Under windowing this should no longer appear |
 
-**`matching` 是过滤后的计数，不是库里的行数。** `exclude-pinned=true` 时它比行数少 pinned 的条数
-（本机：255 行 − 5 pinned = `250 matching`）。这不是丢条目 —— 曾因此误报过一次，别重复查。
+**`matching` is the post-filter count, not the row count in the library.** With `exclude-pinned=true` it is the row count minus the pinned count
+(this machine: 255 rows − 5 pinned = `250 matching`). This is not a lost entry — a false alarm was once raised over it, do not re-check it.
 
-## 5. 哪些数能当回归判据，哪些不能
+## 5. Which numbers can be regression criteria, and which cannot
 
-- **能**：`TTI (main loop free)`、`CRITICAL|JS ERROR` 计数、**`has been already disposed` 的
-  copyous 可归因计数**（`run.sh` 末尾三条数：总数 / 可归因 / 外来；外来只报不判）、
-  **C 侧 GLib 断言的本仓邻近计数**（第五种形态，同样三档）、
-  `residentSetStaysBounded` 这类结构断言、01 的等价比对数与不一致数。
-  ⚠ **旧版这里只写"CRITICAL 计数必须是 0"是不够的**：GJS 把访问已 dispose 对象打成 **warning**，
-  `CRITICAL` 和 `JS ERROR` 两个词都不匹配。2026-10-09 那次 boot 实测：按旧判据数到 1 条（还是 dash.js 的），
-  同期有 **12 条** disposed 警告从退出中的旧 shell 刷出，旧判据一条都看不见。
-  归因靠两件事：栈帧里出现 `extensions/copyous@local/`，或消息头直接点名 `Gjs_common_gjs_<Class>`
-  （本仓所有类都经 `lib/common/gjs.js` 注册，GType 名一律带这个前缀；外来的长这样：
-  `Gjs_ui_layout_UiActor`、`Gjs_caffeine_patapon_info_extension_CaffeineToggle`）。
-  **真实会话侧必须按 `_PID=` 过滤**，否则上一个 shell 退出时的清理噪声会算到本次头上。
-- **不能**：`open(): show`。同一 boot 内实测散布 2.65×（337–895ms，n=6），冷开与暖开的相对关系还会在
-  boot 之间翻转。一次代码回归不可能同时让冷路径变快又让暖路径变慢。
-- **不能**：首开的 `idle after redraw`。它跑在 `PRIORITY_LOW(300)`，而揭示分片是
-  `PRIORITY_DEFAULT_IDLE(200)`，必然先排空，所以那个数几乎等于 gap。
+- **Can**: `TTI (main loop free)`, the `CRITICAL|JS ERROR` count, **the copyous-attributable count of `has been already disposed`**
+  (`run.sh`'s three numbers at the end: total / attributable / foreign; foreign is reported, not judged),
+  **the repo-proximate count of C-side GLib assertions** (the fifth shape, likewise three tiers),
+  structural assertions like `residentSetStaysBounded`, and 01's equivalence-comparison and mismatch counts.
+  ⚠ **The old version writing only "the CRITICAL count must be 0" is not enough**: GJS prints access to a disposed object as a **warning**,
+  matching neither `CRITICAL` nor `JS ERROR`. Measured in that 2026-10-09 boot: the old criterion counted 1 (and it was dash.js's),
+  while **12** disposed warnings flushed from the exiting old shell in the same period, invisible to the old criterion.
+  Attribution rests on two things: `extensions/copyous@local/` appearing in a stack frame, or the message header naming `Gjs_common_gjs_<Class>`
+  (every class in this repo is registered through `lib/common/gjs.js` and its GType name always carries that prefix; foreign ones look like:
+  `Gjs_ui_layout_UiActor`, `Gjs_caffeine_patapon_info_extension_CaffeineToggle`).
+  **On the real-session side you must filter by `_PID=`**, or the cleanup noise from the previous shell's exit is counted against this one.
+- **Cannot**: `open(): show`. Measured spread of 2.65× within one boot (337–895ms, n=6), and the cold/warm relationship also flips between
+  boots. No single code regression can make the cold path faster and the warm path slower at once.
+- **Cannot**: the first open's `idle after redraw`. It runs at `PRIORITY_LOW(300)` while the reveal slices are
+  `PRIORITY_DEFAULT_IDLE(200)`, so they necessarily drain first, making that number almost equal to gap.

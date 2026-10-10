@@ -1,332 +1,335 @@
-# 三层验证：跑什么、按什么顺序、隔离边界在哪
+# Three-layer verification: what to run, in what order, where the isolation boundary is
 
-改代码前后的验证入口全在这个文件：L0 静态、L0b 设置窗（**不用注销**）、L1 headless 三臂、L2 真实会话，外加隔离 harness 的硬边界、环境残留清理，以及「headless 能证明什么、不能证明什么」。
+Every verification entry point before and after a code change is in this file: L0 static, L0b settings window (**no logout**), L1 headless three arms, L2 real session, plus the isolated harness's hard boundaries, environment-residue cleanup, and "what headless can and cannot prove".
 
-> **来历**：从 `MAINTENANCE.md`（拆分前 520 行 / 12 节）搬来的第 1 节（L0/L0b/L1/L2）、第 3 节、第 10 节。搬动是逐字复制，
-> 只有相对链接按新目录层级改写过。这个文件是这些事实的唯一主人，别在别处复述一遍。
+> **Origin**: section 1 (L0/L0b/L1/L2), section 3, and section 10, moved verbatim from `MAINTENANCE.md` (520 lines / 12 sections before the split). The move was a verbatim copy;
+> only the relative links were rewritten for the new directory level. This file is the sole owner of these facts; do not restate them elsewhere.
 
 
-## 1. 三层验证
+## 1. Three-layer verification
 
-### L0 静态（不需要 shell，永远先跑）
+### L0 static (no shell needed, always run first)
 
 ```sh
 for f in $(find . -name '*.js' -not -path './.git/*'); do node --check "$f" || echo "FAIL $f"; done
-node --test test/*.test.js          # `npm test` 现在也能跑（2026-10-09 实测），两种都行
+node --test test/*.test.js          # `npm test` now works too (measured 2026-10-09); either is fine
 ```
 
-预期：107 个文件全过；`tests 103 / pass 103 / fail 0`。
-这两个数会随代码增长，别把它们当判据 —— 判据是 **fail 0**。要当场确认就跑
-`find . -name '*.js' -not -path './.git/*' | wc -l` 和 `node --test test/*.test.js | grep -E '^# (tests|fail)'`。
+Expected: all 107 files pass; `tests 103 / pass 103 / fail 0`.
+These two numbers grow with the code, so do not use them as criteria — the criterion is **fail 0**. To confirm on the spot, run
+`find . -name '*.js' -not -path './.git/*' | wc -l` and `node --test test/*.test.js | grep -E '^# (tests|fail)'`.
 
-**设置覆盖门**（schema ↔ 设置窗的交叉核对，纯静态、不碰 dconf）：
+**Settings-coverage gate** (a cross-check of schema ↔ settings window, purely static, does not touch dconf):
 
 ```sh
-node scripts/settings-coverage.mjs   # 判据在最后一行：RESULT: PASS / FAIL
+node scripts/settings-coverage.mjs   # the criterion is on the last line: RESULT: PASS / FAIL
 ```
 
-它把 `schemas/*.gschema.xml` 的 82 个键和 `lib/preferences/**` 的接线对齐，四种红法都已逐条投毒证明
-会响：少一个 `makeResettable` 调用、把键名拼错、把 bind 的键名换成变量（这条同时封掉检测器唯一
-的逃逸路径）、以及删掉 bind 却留着 reset 按钮。`test/settings-coverage.test.js` 把它接进了
-`npm test`，所以漏掉一个恢复入口不可能靠"忘了跑那条命令"混过去。
+It aligns the 82 keys of `schemas/*.gschema.xml` with the wiring in `lib/preferences/**`, and all four red modes have been poisoned one by one to prove
+they fire: a missing `makeResettable` call, a misspelled key name, a `bind` key name turned into a variable (which also closes the detector's only
+escape route), and deleting the `bind` while keeping the reset button. `test/settings-coverage.test.js` wires it into
+`npm test`, so missing a restore entry cannot slip through by "forgetting to run that command".
 
-`-- keys with no widget at all in prefs: 1` 是**已知且合法**的：`paste-on-copy` 已废弃，
-`migrateSettings()` 把它的语义取反迁到 `swap-copy-shortcut` 再 `reset` 掉，所以它不该有行。
-另有 2 个键（`in-memory-database`、`database-backend`）由按钮而非控件驱动，报告单列。
+`-- keys with no widget at all in prefs: 1` is **known and legitimate**: `paste-on-copy` is deprecated,
+and `migrateSettings()` inverts its meaning into `swap-copy-shortcut` and then `reset`s it, so it should have no row.
+Another 2 keys (`in-memory-database`, `database-backend`) are driven by a button rather than a control, and are reported separately.
 
-**接线一致性**（改名 / 删方法后必做）：
+**Wiring consistency** (do this after a rename / method deletion):
 
 ```sh
-./test/headless/run.sh live 07          # 探针 07，一个会话约 1 分钟
+./test/headless/run.sh live 07          # probe 07, about 1 minute per session
 ```
 
-这里原来写的是一条 `grep "\.addItem(\|\.focusChild(\|\.nextFocus("`，断言"预期：无输出"。
-**它已经被证伪，别再照它跑**：容器重构删掉的 `addItem` 与 `SearchEntry` 自己的私有 `addItem`
-（类型过滤下拉的建行函数）撞名，所以这条检查**永久误报 9 条**；而"已删方法名清单"这种形式本身
-也会随代码演化腐烂——要么被忽略，要么被"删掉能跑的代码"来让它变绿。
-（`SearchEntry` 的那个私有方法现已改名 `addFilterRow`，撞名消失；但守卫不该依赖改名。）
+What was written here before was a `grep "\.addItem(\|\.focusChild(\|\.nextFocus("` asserting "expected: no output".
+**It has been disproven, do not run it again**: the `addItem` removed by the container refactor collided in name with `SearchEntry`'s own private `addItem`
+(the row-build function of the type-filter dropdown), so that check **permanently false-alarmed on 9 items**; and the "list of deleted method names" form itself
+also rots as the code evolves — either it gets ignored, or it gets "fixed" by deleting working code to make it green.
+(`SearchEntry`'s private method has since been renamed `addFilterRow`, and the collision is gone; but the guard should not depend on a rename.)
 
-探针 07 换成**由代码自身推导范围**：从源码里取 `this._x = new Cls(` 与同文件内的 `this._x.m(`
-配对，再把 `m` 解析到**活对象**上 —— 于是继承自 St/Clutter/GObject 的方法天然正确，不需要白名单；
-取不到活实例的类别报成 `skipped` 而不是默默放过。2026-10-09 实测：83 文件 / 163 类声明 /
-**135 个调用对** / 42 个活类 / 0 解析失败，9 组 skipped 全在 prefs 侧（设置窗是独立进程，
-shell 里永远不会实例化它们）。对象遍历只进本仓库声明的类：不加这条限制时它死在
-`Unsupported type GdaShort, deriving from fundamental gint` 上 —— 读 GI boxed 对象的属性会让
-GJS 去 marshal 它表示不了的 GValue。探针自带一次故意投毒（同一解析器必须放过 `addEntry`、
-必须抓住一个不存在的方法名），否则"0 失败"可能只是因为什么都没查。
+Probe 07 was replaced with one that **derives its scope from the code itself**: from the source it takes `this._x = new Cls(` and pairs it with `this._x.m(`
+in the same file, then resolves `m` on the **live object** — so methods inherited from St/Clutter/GObject are naturally correct, with no allowlist needed;
+categories with no live instance are reported as `skipped` rather than silently let through. Measured 2026-10-09: 83 files / 163 class declarations /
+**135 call pairs** / 42 live classes / 0 resolution failures, all 9 skipped groups on the prefs side (the settings window is a separate process, so
+they are never instantiated in the shell). Object traversal enters only classes declared in this repo: without that restriction it dies on
+`Unsupported type GdaShort, deriving from fundamental gint` — reading a GI boxed object's property makes
+GJS try to marshal a GValue it cannot represent. The probe includes a deliberate poisoning (the same resolver must let `addEntry` through and
+must catch a nonexistent method name), or "0 failures" might just mean nothing was checked.
 
-### L0b 设置窗（**不需要注销，也不碰 dconf**）
+### L0b settings window (**no logout needed, and does not touch dconf**)
 
-`lib/preferences/**` 跑在独立的 gjs 进程里，所以它是唯一能「改完立刻验证」的面。
-`test/prefs/run.sh` 在 Xvfb 下真建整棵 Adw 控件树，再对**它自己造出来的真控件**断言四条文案不变式
-（外加 `windowBuilt` 这个前置条件，所以报告是 `# 5/5`）：
+`lib/preferences/**` runs in a separate gjs process, so it is the only surface that can be "verified immediately after a change".
+`test/prefs/run.sh` builds the whole Adw widget tree for real under Xvfb, then asserts four copy invariants against **the real controls it built itself**
+(plus the `windowBuilt` precondition, so the report is `# 5/5`):
 
 ```sh
-./test/prefs/run.sh                    # 判据在最后一行：green / RED / NOT VERIFIED
-COPYOUS_PREFS_DUMP=1 ./test/prefs/run.sh | awk -F'\t' '$1=="ROW"'   # 逐行列出每个控件
-COPYOUS_PREFS_ROOT=/tmp/lab/copyous@local ./test/prefs/run.sh        # 跑仓库副本（投毒用）
+./test/prefs/run.sh                    # the criterion is on the last line: green / RED / NOT VERIFIED
+COPYOUS_PREFS_DUMP=1 ./test/prefs/run.sh | awk -F'\t' '$1=="ROW"'   # list every control line by line
+COPYOUS_PREFS_ROOT=/tmp/lab/copyous@local ./test/prefs/run.sh        # run a repo copy (for poisoning)
 ```
 
-四条：每个分组有标题、**每个会改设置的行有副标题**、**每个纯图标按钮有 tooltip**、同一列表里
-没有两行的 title+subtitle 完全相同。2026-10-09 第一次跑就是红的：6 个无标题分组、
-**24/83 个设置行没有副标题**、**28/38 个纯图标按钮没有 tooltip**、Theme 页两行同名同副标题。
+Four: every group has a title, **every row that changes a setting has a subtitle**, **every icon-only button has a tooltip**, and no two rows in the same
+list share a title+subtitle. 2026-10-09's first run was red: 6 groups without a title,
+**24/83 settings rows without a subtitle**, **28/38 icon-only buttons without a tooltip**, two rows on the Theme page sharing a title and subtitle.
 
-跑完之后还有一条**用户数据绊线**：这里只有 dconf 被 `GSETTINGS_BACKEND=memory` 隔离，数据目录用的是
-真实路径，所以 `run.sh` 在跑前后各取一次指纹 —— `~/.config/copyous@local` 比 `ls -l | cksum`
-（内容和元数据都不许变），`~/.local/share/copyous@local` **只比文件名集合**（日常使用会重写
-`clipboard.db-wal`，比大小或 mtime 会把用户自己的剪贴板报成"测试写坏了数据"）。绊线本身是用
-`HOME=/tmp/…` 的副本证明会响的，不是靠"没响"推出来的。
+After the run there is also a **user-data tripwire**: only dconf is isolated here, via `GSETTINGS_BACKEND=memory`; the data directory uses the
+real path, so `run.sh` takes a fingerprint before and after — `~/.config/copyous@local` compared with `ls -l | cksum`
+(neither content nor metadata may change), and `~/.local/share/copyous@local` **compared only by filename set** (daily use rewrites
+`clipboard.db-wal`, so comparing size or mtime would report the user's own clipboard as "the test corrupted data"). The tripwire itself was proven to fire
+with a `HOME=/tmp/…` copy, not inferred from "it did not fire".
 
-**恢复入口的覆盖不在这里查，在本文 L0 那节的静态门查**：`bind` 与 `makeResettable` 是同一文件的两处源码，
-运行时看得到按钮、看不到它管哪个键。2026-10-09 补齐后实测：79 个控件全部有恢复按钮，
-纯图标按钮 40 → 74 个（`edit-undo` 占绝大多数，都带同一个 tooltip）。
+**Coverage of restore entries is not checked here, it is checked by the static gate in this file's L0 section**: `bind` and `makeResettable` are two places in the same file's
+source, and at runtime you can see the button but not which key it governs. Measured after the 2026-10-09 fill-in: all 79 controls have a restore button,
+and icon-only buttons went 40 → 74 (`edit-undo` accounts for the vast majority, all with the same tooltip).
 
-补这一轮时得到的两条经验：
+Two lessons from that round:
 
-- **绑在子页上的键，恢复按钮挂在打开它的那一行**。`file-preview-types` /
+- **For a key bound on a subpage, the restore button hangs on the row that opens it**. The bind targets of `file-preview-types` /
   `file-preview-exclusion-patterns` / `link-preview-exclusion-patterns` / `wmclass-exclusions`
-  的 bind 目标是 `Adw.NavigationPage` 或 `Adw.PreferencesGroup`，它们**没有 `add_suffix`** —— 把
-  `makeResettable` 挂上去，整个设置窗直接建不起来。投毒证明这条被 `windowBuilt` 抓住：
-  `FAIL windowBuilt = row.add_suffix is not a function` + 到 `fileItemCustomization.js:214` 的栈。
-- **按钮在默认值时是"灰着但可见"，不是隐藏**。隐藏更好看，但那样内存后端（整窗都在默认值）就
-  一个按钮都数不到，运行时这道门会退化成空转；可见的灰按钮同时是"这项可以恢复"的提示。
+  are `Adw.NavigationPage` or `Adw.PreferencesGroup`, which **have no `add_suffix`** — attaching
+  `makeResettable` to them makes the whole settings window fail to build. Poisoning proved `windowBuilt` catches this:
+  `FAIL windowBuilt = row.add_suffix is not a function` + a stack to `fileItemCustomization.js:214`.
+- **A button at its default value is "greyed but visible", not hidden**. Hiding it looks nicer, but then the memory backend (the whole window at default values) would
+  count no buttons at all, and the runtime gate would degenerate into a no-op; a visible grey button is also the hint that "this can be restored".
 
-三条边界，别把它们当成已覆盖：
+Three boundaries, do not treat them as covered:
 
 
-- **只覆盖四个主页**。`window.push_subpage()` 推上去的子页（Default Actions / Manage
-  Highlight.js / 声音选择器）和对话框里的控件**没有被走查** —— 它们不在窗口树上，直到被打开。
-  实测判据：`ourPages=4`。
-- **`Adw.Row` 不在 typelib 里**，`instanceof Adw.Row` 会当场抛异常。公开基类是
-  `Adw.PreferencesRow`；`Adw.Range` 同理不存在。
-- **纯图标按钮的判定必须排掉工具包自己画的**：`AdwSpinRow` 的 +/- 与下拉箭头不是我们的控件，
-  给它们写 tooltip 是替 GTK 贴标签。排掉之后 60 → 37 个，剩下的才是我们的（`edit-undo` 那 26 个
-  全部来自 `makeResettable` 一处，所以一行 tooltip 修掉 26 个缺口）。
+- **Only the four main pages are covered**. Subpages pushed by `window.push_subpage()` (Default Actions / Manage
+  Highlight.js / the sound picker) and the controls in dialogs **are not walked** — they are not in the window tree until opened.
+  Measured criterion: `ourPages=4`.
+- **`Adw.Row` is not in the typelib**, and `instanceof Adw.Row` throws on the spot. The public base is
+  `Adw.PreferencesRow`; `Adw.Range` likewise does not exist.
+- **The icon-only-button test must exclude the toolkit's own drawings**: `AdwSpinRow`'s +/- and dropdown arrow are not our controls, and
+  writing tooltips for them is labelling GTK on its behalf. After excluding them, 60 → 37, and the rest are ours (the 26 `edit-undo` ones
+  all come from one `makeResettable` site, so one tooltip line fixes 26 gaps).
 
-仪器自己红过一次，值得记：`Gio.Application` **没有** `exit(code)`（只有私有 `g_application_exit`），
-`activate` 又是同步返回的 —— 没有 `app.hold()` 时脚本在半路抛异常照样退出 0，`run.sh` 就打出
-「green」。现在的三道锁：`hold/release` + `System.exit(code)` + **`run.sh` 找不到
-`# N/M checks passed` 那行就判 NOT VERIFIED**，绝不从「没有红」推出「是绿」。
+The instrument itself went red once, worth recording: `Gio.Application` has **no** `exit(code)` (only the private `g_application_exit`),
+and `activate` returns synchronously — without `app.hold()`, a script that throws midway still exits 0, and `run.sh` prints
+"green". The three locks now: `hold/release` + `System.exit(code)` + **`run.sh` judging NOT VERIFIED when it cannot find
+the `# N/M checks passed` line**, never inferring "green" from "not red".
 
-### L1 headless 三臂
+### L1 headless three arms
 
 ```sh
-./test/headless/run.sh all                  # 三配置 × 十三探针 = 39 个独立 shell 会话
-./test/headless/run.sh live                 # 只跑当前真实配置那一臂
-./test/headless/run.sh unwindowed 01 03     # 只跑两个探针
+./test/headless/run.sh all                  # three configs × thirteen probes = 39 independent shell sessions
+./test/headless/run.sh live                 # run only the current real-config arm
+./test/headless/run.sh unwindowed 01 03     # run only two probes
 ```
 
-三臂分别是：
+The three arms are:
 
-| config | 覆盖什么 | 为什么必须留 |
+| config | What it covers | Why it must stay |
 | --- | --- | --- |
-| `live` | 竖向 + 固定 170px 行 → **窗口化生效** | 你机器上实际跑的就是这条 |
-| `unwindowed` | 竖向 + 动态行高 → **窗口化关闭**，每条都有 actor | 它离 `live` 只有一个设置的距离，必须同样绿 |
-| `horizontal` | 横向 + 固定宽 → 窗口化生效 | 全新安装的默认臂 |
+| `live` | vertical + fixed 170px rows → **windowing active** | this is what actually runs on your machine |
+| `unwindowed` | vertical + dynamic row height → **windowing off**, every entry has an actor | it is one setting away from `live`, so it must be equally green |
+| `horizontal` | horizontal + fixed width → windowing active | the default arm of a fresh install |
 
-每个探针独占一个 shell 会话。**不要**为了省时间把它们塞进同一会话：前一个探针的开开关、搜索、
-销毁会渗进后一个探针的计时和内存里 —— 有一次 6× 的填充改善就是这么被读成"没变化"的。
+Each probe gets its own shell session. Do **not** pack them into one session to save time: the previous probe's open/close, search, and
+destroy leak into the next probe's timings and memory — a 6× fill improvement was once read as "no change" that way.
 
-结果落在 `$COPYOUS_WORK/out`（默认 `/tmp/copyous-harness/out`），不进仓库，所以没有需要
-gitignore 的产物；崩溃了产物也还在 `/tmp` 里可查。
+Results land in `$COPYOUS_WORK/out` (default `/tmp/copyous-harness/out`), not in the repo, so there are no artifacts needing
+gitignore; if it crashes the artifacts are still in `/tmp` and inspectable.
 
-一个探针超时**不只是少一条结果**。超时的会话是被 SIGTERM 之外的手段收走的，而它一直攥着 mutter 的
-wayland 锁（`/run/user/1000/wayland-copyous-harness.lock`）——后面每个会话都在
-`Failed to create_socket` 上开局即死，报回来的却是 `shell never answered Eval`。2026-10-10 那轮
-39 会话里，horizontal 臂一个 `06-ux-hidden` 超时换来 **7 条假红**，日志上看不出它们彼此有关。
-现在两处一起改掉这个放大：`down.sh` 发完 TERM 先复查，仍有存活就升级 KILL 再复查一次（删 bus
-socket 放在确认之后——先删会把那个壳自己的 socket 一起删掉，反而查不到它）；`run.sh` 不再把
-`down.sh` 的输出一并吞掉，拆除失败就**当场停止整轮**，继续跑只会量产与产品无关的红。升级这条有
-正负对照：拿一个 `trap '' TERM` 的假壳跑旧脚本 → `WARN … survived SIGTERM` 且进程照旧活着
-（exit 1）；跑新脚本 → `escalating to SIGKILL` + `no … processes left`（exit 0）。
+A probe timeout is **not just one missing result**. The timed-out session is reaped by means other than SIGTERM, and it keeps holding mutter's
+wayland lock (`/run/user/1000/wayland-copyous-harness.lock`) — every later session dies at startup on
+`Failed to create_socket`, yet reports back `shell never answered Eval`. In the 2026-10-10 round's
+39 sessions, one `06-ux-hidden` timeout on the horizontal arm bought **7 false reds**, with nothing in the logs to show they were related.
+Both places now fix this amplification: `down.sh` re-checks after sending TERM, and if anything survives, escalates to KILL and re-checks once more (the bus
+socket deletion is placed after the confirmation — deleting first removes that shell's own socket too, making it un-findable); `run.sh` no longer swallows
+`down.sh`'s output, and on teardown failure **stops the whole round on the spot**, because continuing only mass-produces reds unrelated to the product. The escalation has
+positive and negative controls: running the old script against a fake shell with `trap '' TERM` → `WARN … survived SIGTERM` and the process still alive
+(exit 1); running the new script → `escalating to SIGKILL` + `no … processes left` (exit 0).
 
-超时那一支还留**现场**（D-055）：`$OUT/<config>-<name>.stall.txt`，内容是 `ps -o stat,time,wchan,rss`、
-`/proc/PID/wchan`、**相隔 2 秒的两次 `majflt`**、线程名直方图、每线程 state/wchan、一次
-`timeout 5 gdbus … Eval '1+1'` 的 rc、`MemAvailable/SwapTotal/SwapFree`，加那份日志的最后 8 行。
-两行 majflt 是分判据：**冻住 = 阻塞（死锁一类），猛涨 = 换页风暴**，处置完全相反，而这台机器两者都可能。
-轮询上限是 `CO_PROBE_POLL`（单位 5 秒，默认 90 拍 = 450 秒），有了它这条仪器能在秒级自验：
-临时探针 `GLib.usleep(60 * 1000000)` + `CO_PROBE_POLL=2` → 快照里 `wchan=hrtimer_nanosleep`、
-`eval rc=124`、`majflt 2 → 2`。探针钉死本身是间歇的（见 [open-items.md](open-items.md)），别把一次红当成结论。
+The timeout branch also leaves **a scene** (D-055): `$OUT/<config>-<name>.stall.txt`, containing `ps -o stat,time,wchan,rss`,
+`/proc/PID/wchan`, **two `majflt` samples 2 seconds apart**, a thread-name histogram, per-thread state/wchan, the rc of a
+`timeout 5 gdbus … Eval '1+1'`, `MemAvailable/SwapTotal/SwapFree`, and the last 8 lines of that log.
+The two majflt lines are the decider: **frozen = blocked (a deadlock of some kind), soaring = a page-fault storm**, whose handling is entirely opposite, and this machine can be either.
+The poll ceiling is `CO_PROBE_POLL` (unit 5 seconds, default 90 ticks = 450 seconds); with it, this instrument can self-verify in seconds:
+a temp probe `GLib.usleep(60 * 1000000)` + `CO_PROBE_POLL=2` → the snapshot's `wchan=hrtimer_nanosleep`,
+`eval rc=124`, `majflt 2 → 2`. The hang itself is intermittent (see [open-items.md](open-items.md)); do not treat one red as a conclusion.
 
-**探针 06 的阶段上限**（D-057）：`_preamble.js` 里的 `co.phase(name, budgetMs, fn)` 把 06 切成
-`open / scroll / blink / ease / thumb / pin / empty / close`，每段一条判据 `phase:<name>`，红法有**两条腿**，
-因为两种坏法互相看不见 —— **永不落定**由 deadline 抓到（`outcome=deadline`）；**同步超时**由实测毫秒抓到
-（`outcome=done` 但 `ms > budgetMs`），这种情况下 deadline 发不出来，因为主线程还在 C 里面。
-滚动循环另加 `STEP_CAP=400`（255 行 fixture 实测每趟约 82 步 `live` / 约 49 步 `horizontal`，400 远在两者之上）
-与判据 `scrollLoopNeverCapped`。
-`verdict.js` 多打一行 `phases: 名字=用时/预算ms`，红的那条自带观测值。
-预算按通过运行的阶段耗时放数倍定的：**它红只说明"去看这一段"**，不是性能回归；它也不消除钉死本身，
-真被 C 卡住那一路由上面的 stall 快照接管。逼红用的临时探针（`usleep 2s` 装进 500ms 预算、
-一段永不 resolve 的 promise 装进 1500ms 预算）报回
-`phase:overrun = {"outcome":"done","ms":2001,"budgetMs":500}` 与
-`phase:never = {"outcome":"deadline","ms":1501,"budgetMs":1500}`，整条 `FAIL 1/3 checks`、exit 1，
-而 450 秒的轮询一次都没用上。改 06 时**每条既有断言都还在**：`chk/rec/metric` 的键集合 `diff` 过，
-旧 16 个一个不少，只多了 `scrollLoopParams`（metric）与 `scrollLoopNeverCapped`（chk）。
+**Probe 06's phase ceilings** (D-057): `co.phase(name, budgetMs, fn)` in `_preamble.js` splits 06 into
+`open / scroll / blink / ease / thumb / pin / empty / close`, each with a criterion `phase:<name>`, and there are **two legs** to going red,
+because the two failure modes are invisible to each other — **never settling** is caught by the deadline (`outcome=deadline`); a **synchronous overrun** is caught by the measured milliseconds
+(`outcome=done` but `ms > budgetMs`), in which case the deadline cannot fire because the main thread is still inside C.
+The scroll loop also gains `STEP_CAP=400` (measured on the 255-row fixture at about 82 steps per trip `live` / about 49 steps `horizontal`, with 400 far above both)
+and the criterion `scrollLoopNeverCapped`.
+`verdict.js` prints one extra line `phases: name=time/budget ms`, and the red one carries its own observed value.
+The budgets are set at several times the phase durations of a passing run: **red only means "go look at that section"**, not a performance regression; nor does it remove the hang itself —
+the path truly blocked in C is taken over by the stall snapshot above. The temp probes used to force red (a `usleep 2s` inside a 500ms budget,
+and a never-resolving promise inside a 1500ms budget) reported back
+`phase:overrun = {"outcome":"done","ms":2001,"budgetMs":500}` and
+`phase:never = {"outcome":"deadline","ms":1501,"budgetMs":1500}`, the whole thing `FAIL 1/3 checks`, exit 1,
+with the 450-second poll never used. When changing 06, **every existing assertion is still there**: the `chk/rec/metric` key sets were `diff`ed,
+none of the old 16 lost, only `scrollLoopParams` (metric) and `scrollLoopNeverCapped` (chk) added.
 
-**钉死时也留得下阶段名**：`co.phase` 在开工前先 `print()` 一行 `[copyous-probe] phase <name> start budget=<M>ms`，
-快照因此多一节 `probe phases reached:`（把标记全捞出来再 `tail -12`）。这不是装饰 —— deadline 和结果文件
-在被 C 卡住那一路都不可能出现，日志里这一行是唯一还能说出"当时在跑哪一段"的东西。而它必须是单独一次 `grep`：
-咬齿用的临时探针（跑完即删，原文 `docs/reports/phase-marker-teeth.txt`）在一个 30 秒预算的阶段里先打 200 行
-警告再 `GLib.usleep(120 * 1000000)`，`CO_PROBE_POLL=2` → `TIMEOUT after 10s`，快照写着
-`wchan=hrtimer_nanosleep`（阻塞在 C 里）、`probe phases reached: phase marker-proof start budget=30000ms`，
-而同一份快照的 `log tail:` 只有噪声 192–197 那几行 —— **标记早被淹了**，只看日志尾部等于没看。
+**A hang still leaves a section name behind**: `co.phase` first `print()`s a `[copyous-probe] phase <name> start budget=<M>ms` line before starting,
+so the snapshot gains a `probe phases reached:` section (fishing all the markers out then `tail -12`). This is not decoration — on the path blocked
+in C, neither the deadline nor the result file can appear, and this log line is the only thing that can still say "which section was running". And it must be a separate `grep`:
+the temp probe used for the teeth (deleted after the run, transcript `docs/reports/phase-marker-teeth.txt`) prints 200 warning lines inside a 30-second-budget phase then
+`GLib.usleep(120 * 1000000)`, `CO_PROBE_POLL=2` → `TIMEOUT after 10s`, and the snapshot writes
+`wchan=hrtimer_nanosleep` (blocked in C) and `probe phases reached: phase marker-proof start budget=30000ms`,
+while the same snapshot's `log tail:` holds only the noise lines 192–197 — **the marker was long drowned**; looking only at the log tail is as good as not looking.
 
-上限之后连着跑了**两轮** `run.sh all 06`，读数与那条钉死快照存 `docs/reports/06-phasebudget-three-arms.txt`：
+After the ceilings, `run.sh all 06` was run **twice** back to back, with the readings and that hang snapshot stored in `docs/reports/06-phasebudget-three-arms.txt`:
 
-- **12:06 那轮**：`live` **15/15**（`open=4934`、`scroll=16024`、`blink=2841`、`ease=1216`、`thumb=1316`、
-  `pin=1060`、`empty=1031`，预算依次 30000ms/60000ms/20000ms/15000ms×4；`per=182 rowsPerViewport=3 max=45110`）、
-  `unwindowed` **5/5**（`open=6736`、`scroll=10234`、`close=604`）、`horizontal` **又钉死一次**（450s 轮询用满）。
-  这一轮只有 stall 快照原样留存（harness 的结果文件是固定路径，被下一轮覆盖了），所以那几个毫秒数是**当场读过、事后抄录**；
-  快照本身写着 `futex_do_wait`、`majflt 9 → 9` 不动 ⇒ **不是换页**、`SwapFree 14472896 kB`、线程表里有
-  `wavparse0:sink` 与 `typefind:sink`、`eval rc=124`。**阶段上限对这一种无效**：主线程被 C 卡住时 deadline 和
-  结果文件都不可能出现，抓到它的仍然是 D-055 那份快照。
-- **12:32 那轮**：三条臂**全绿** —— `live` **15/15**（`open=4285`、`scroll=16860`、`blink=2937`、`ease=1208`、
-  `thumb=1303`、`pin=1057`、`empty=1033`）、`unwindowed` **5/5**（`open=7056`、`scroll=12960`、`close=603`）、
-  `horizontal` **15/15**（`open=4427`、`scroll=12439`、`blink=4272`、`ease=1236`、`thumb=1502`、`pin=1059`、
-  `empty=1031`，`per=262 rowsPerViewport=5 max=64237`），五种打印形态各 0 条。
-  ⇒ 上限没有把那条间歇钉死变成常驻红；`horizontal` 在同一件事上第三次绿，也再次证明它不可按需复现。
+- **The 12:06 round**: `live` **15/15** (`open=4934`, `scroll=16024`, `blink=2841`, `ease=1216`, `thumb=1316`,
+  `pin=1060`, `empty=1031`, budgets in order 30000ms/60000ms/20000ms/15000ms×4; `per=182 rowsPerViewport=3 max=45110`),
+  `unwindowed` **5/5** (`open=6736`, `scroll=10234`, `close=604`), `horizontal` **hung once more** (the 450s poll fully used).
+  This round only the stall snapshot was kept as-is (the harness's result files are at fixed paths and were overwritten by the next round), so those millisecond values are **read at the time and transcribed afterward**;
+  the snapshot itself reads `futex_do_wait`, `majflt 9 → 9` unchanged ⇒ **not paging**, `SwapFree 14472896 kB`, the thread table showing
+  `wavparse0:sink` and `typefind:sink`, `eval rc=124`. **The phase ceilings are useless against this one**: when the main thread is blocked in C, neither the deadline nor the
+  result file can appear, and what catches it is still D-055's snapshot.
+- **The 12:32 round**: all three arms **green** — `live` **15/15** (`open=4285`, `scroll=16860`, `blink=2937`, `ease=1208`,
+  `thumb=1303`, `pin=1057`, `empty=1033`), `unwindowed` **5/5** (`open=7056`, `scroll=12960`, `close=603`),
+  `horizontal` **15/15** (`open=4427`, `scroll=12439`, `blink=4272`, `ease=1236`, `thumb=1502`, `pin=1059`,
+  `empty=1031`, `per=262 rowsPerViewport=5 max=64237`), zero of each of the five print shapes.
+  ⇒ The ceilings did not turn the intermittent hang into a permanent red; `horizontal` went green on the same thing a third time, again proving it is not reproducible on demand.
 
-顺着那条快照做过一次定向实验（临时探针复刻 `tryCreateMediaFileInfo` 的序列，跑完即删，原文
-`docs/reports/media-race-concurrency.txt`）：**两条 pipeline 同时在飞、各带那圈 50ms 轮询，53ms 双双落定**
-（`PASS 2/2`，判据 `bothPollsSettle`）；不轮询时 12ms 就返回、而且本来就是 `ok=false`、`dur=-1`
-—— 立即查询取不到时长，产品代码那圈轮询不是可有可无的装饰。⇒ "并发把主线程锁死"这个形状**被否证**，
-钉死需要 06 更完整的上下文才出现。别把这两件事写成同一个结论。
+Following that snapshot, a targeted experiment was run (a temp probe replicating `tryCreateMediaFileInfo`'s sequence, deleted after the run, transcript
+`docs/reports/media-race-concurrency.txt`): **two pipelines in flight at once, each with that 50ms poll, both settled in 53ms**
+(`PASS 2/2`, criterion `bothPollsSettle`); without polling it returns in 12ms, and is `ok=false`, `dur=-1` to begin with
+— an immediate query gets no duration, so that poll loop in the product code is not an optional decoration. ⇒ The "concurrency locks the main thread" shape is **disproven**;
+the hang needs 06's fuller context to appear. Do not write these two as the same conclusion.
 
-写这种定向实验时的一条仪器坑：在 Eval 里 `await import('gi://Gst')` 而**没有先 enable()** 时，
-那个 promise 永不落定（探针一条标记都没打，主循环空闲在 `poll_schedule_timeout`），
-换 `imports.gi.Gst` 就正常。产品代码里的动态 import 能工作是它在模块上下文里 —— 两回事。
+One instrument pitfall when writing this kind of targeted experiment: in `Eval`, `await import('gi://Gst')` **without enabling first** leaves
+that promise never settling (the probe printed not one marker, and the main loop idled in `poll_schedule_timeout`),
+while `imports.gi.Gst` works normally. The dynamic import in the product code works because it is in a module context — a different matter.
 
-**正文哨兵**（D-058，`run.sh` 最后一段）：五种打印形态数的是词类，**没有一种读内容**，而本仓修过的两处
-journal 泄漏落到日志就是一行正常正文。跑法就是平时那句 `test/headless/run.sh all`，绿路多一行
-`fixture body text in session logs: 0 line(s) across N session(s)`。要点三条，都是会被偷懒实现漏掉的：
+**Body-text sentinel** (D-058, the last part of `run.sh`): the five print shapes count word classes, and **none reads content**, while the two
+journal leaks this repo fixed land in the log as a line of ordinary body text. Running it is just the usual `test/headless/run.sh all`; the green path gains one line
+`fixture body text in session logs: 0 line(s) across N session(s)`. Three points, all of which a lazy implementation would miss:
 
-1. 短语表**从 `make-fixture.js` 自己抽**（`test/headless/fixture-phrases.mjs`：`CJK` / `LATIN` 两个池
-   加三条结构标记，共 14 条），不是抄进脚本的列表 —— 抄的列表会和 fixture 各自漂移，而漂移的方向是"永远绿"。
-   抽不出池、抽不出字面量、条数少于 8 都 exit 3，`run.sh` 把"抽不出表"记 FAIL。
-2. 命中只报**文件、行号、中了哪条短语**（`grep -a -H -n -o -F`），**不打印那一行**。`-H` 是有意的：
-   只有一份日志时 grep 默认省掉文件名，报告就成了一句 `23:会议纪要…`，看不出是哪个会话漏的。
-   报出来的那半句只会是**清单里的 fixture 短语**（哨兵只可能匹配到这些），所以这道闸门自己不会变成它查的泄漏。
-   咬齿现场：`/tmp/copyous-harness/out/live-99-leak.shell.log:16:会议纪要：本地生活服务平台改版`。
-3. 每次跑先清 `$OUT/*.shell.log`。过去"跨所有会话"其实是"跨这个目录历史上所有会话"——本轮清点出
-   **50 份**历史日志混在判据里，一个上周删掉的诊断探针能把红留到今天。
+1. The phrase table is **extracted from `make-fixture.js` itself** (`test/headless/fixture-phrases.mjs`: two pools, `CJK` / `LATIN`,
+   plus three structural markers, 14 in all), not a list copied into the script — a copied list drifts from the fixture on its own, and the direction of drift is "always green".
+   Failing to extract a pool, a literal, or fewer than 8 entries all exit 3, and `run.sh` records "could not extract the table" as FAIL.
+2. A hit reports only **file, line number, which phrase matched** (`grep -a -H -n -o -F`), and **does not print the line**. `-H` is deliberate:
+   with only one log, grep omits the filename by default and the report becomes `23:会议纪要…`, with no way to tell which session leaked.
+   What is reported can only ever be a **fixture phrase from the list** (the sentinel can only match those), so this gate itself cannot become the leak it checks.
+   Teeth scene: `/tmp/copyous-harness/out/live-99-leak.shell.log:16:会议纪要：本地生活服务平台改版`.
+3. Each run clears `$OUT/*.shell.log` first. In the past "across all sessions" was really "across every session this directory has ever held" — this round counted
+   **50** historical logs mixed into the criteria, so a diagnostic probe deleted last week could leave a red alive today.
 
-咬齿（都在真嵌套壳上）：临时探针（前缀 `99-`，跑完即删，所以这里不写文件名）故意打一行 fixture 正文 →
-探针自己 `PASS 1/1`，
-闸门报 `1 line(s) across 1 session(s)` 且 `RESULT: FAIL`（全文 `docs/reports/sentinel-teeth.txt`）；
-删掉之后下一次跑 `0 line(s) across 1 session(s)` 且 PASS —— 这两条一起证明红来自哨兵、且不粘连历史。
-抽表器的三条失败模式各造一次（池改名 / 正文措辞改 / 代码标记改），三次都 `exit=3` 带指名原因，
-每次跑完逐字节还原并断言 `git status --porcelain test/headless/make-fixture.js` 为空。
+Teeth (all on a real nested shell): a temp probe (prefix `99-`, deleted after the run, so no filename here) deliberately prints one line of fixture body →
+the probe itself `PASS 1/1`,
+while the gate reports `1 line(s) across 1 session(s)` and `RESULT: FAIL` (full text `docs/reports/sentinel-teeth.txt`);
+after deleting it, the next run reports `0 line(s) across 1 session(s)` and PASS — the two together prove the red came from the sentinel and does not stick to history.
+The extractor's three failure modes were each produced once (pool renamed / body wording changed / code marker changed), all three `exit=3` with a named reason,
+and after each run everything was restored byte for byte asserting `git status --porcelain test/headless/make-fixture.js` is empty.
 
-**它管哪一段要说清**：哨兵量的是**嵌套壳会话日志**里的 fixture 正文，L1 一层。真实会话（L2）里没有一份
-"已知正文"可以拿来当清单 —— 那是用户的真剪贴板，所以 L2 那一侧仍然靠形态计数加上"本仓不打正文"这两条
-（`clipboardDialog` / `actionMenu` 的修法本身），不是这道闸门的覆盖面。
+**What it governs must be stated plainly**: the sentinel measures fixture body text in **nested-shell session logs**, the L1 layer. The real session (L2) has no
+"known body text" to use as a list — that is the user's real clipboard, so the L2 side still relies on shape counting plus the two rules "this repo does not print body text"
+(`clipboardDialog` / `actionMenu`'s fixes themselves), not this gate's coverage.
 
-**二分用的旋钮**（D-059）：`CO_SKIP_PHASES=scroll,blink test/headless/run.sh live 06` 把点名的阶段整块切掉，
-阶段表里记成 `scroll=0/60000ms(skipped)`。守卫 `everyRequestedSkipRan` 在 `done()` 里比对"请求跳的"和
-"真跳了的"，名字打错就 FAIL —— 没有这条，一个拼错的阶段名会换来一次什么都没二分的绿。
-滚动循环里另外每步打一行 `[copyous-probe] scroll pass=P step=S`：**必须打在迈步之前**，钉死发生在某一步中间，
-事后打印永远不会出现。
+**The bisection knob** (D-059): `CO_SKIP_PHASES=scroll,blink test/headless/run.sh live 06` cuts the named phases out entirely,
+recorded in the phase table as `scroll=0/60000ms(skipped)`. The guard `everyRequestedSkipRan` in `done()` compares "what was requested to skip" against
+"what really was skipped", failing on a misspelled name — without it, a misspelled phase name buys a green that bisected nothing.
+One usage pitfall I just hit myself: `run.sh`'s probe argument is a **prefix** (it matches filenames as `<arg>-<name>.js`), so
+a temp probe must be passed `99`, not `99-walk`; passing it wrong makes it exit on the spot with `no such probe` and start no session at all,
+so I let a batch of 6 runs all no-op within 10 seconds (nonzero exit, so it was not misread as green — but "it ran" was almost taken as a conclusion).
+The scroll loop also prints one line `[copyous-probe] scroll pass=P step=S` per step: **it must print before taking the step**, since a hang happens in the middle of a step and
+a post-hoc print would never appear.
 
-**钉死归因到哪一步了**（D-059，批量 1）：
+**How far the hang has been attributed** (D-059, batch 1):
 
-阶段标记 + `CO_SKIP_PHASES` 装上之后的第一批十二跑（`/tmp/bisect-06.log`，13:12–13:25）：
+After the phase markers + `CO_SKIP_PHASES` were installed, the first batch of twelve runs (`/tmp/bisect-06.log`, 13:12–13:25):
 
-| 跑 | 配置 | scroll | 结果 |
+| Run | Config | scroll | Result |
 | --- | --- | --- | --- |
-| 1–5 | `live` | 在内 | 5 跑全绿（`scroll` 15.9–16.9 秒，预算 60000ms 没用满） |
-| 6–10 | `live` | 跳掉 | 5 跑全绿，阶段表写着 `scroll=0/60000ms(skipped)` |
-| 11 | `horizontal` | 在内 | 绿 |
-| 12 | `horizontal` | 在内 | **钉死**，快照 `docs/reports/bisect-stall-run12-horizontal.txt` |
+| 1–5 | `live` | in | 5 runs all green (`scroll` 15.9–16.9 seconds, the 60000ms budget not fully used) |
+| 6–10 | `live` | skipped | 5 runs all green, the phase table reading `scroll=0/60000ms(skipped)` |
+| 11 | `horizontal` | in | green |
+| 12 | `horizontal` | in | **hung**, snapshot `docs/reports/bisect-stall-run12-horizontal.txt` |
 
-第 12 跑的标记段是 `scroll pass=0 step=38…49`，而横向这套几何
-（`per=262`、`rowsPerViewport=5`、`max=64237`）的循环上界正是 `i=49`：`49×1310=64190 ≤ 64237 < 50×1310`。
-**也就是"把列表滚到最底"的那一步**。加上 13:05 那次 `live` 臂（标记只有 `open` + `scroll` 两行，
-`docs/reports/stall-live-06-named-scroll.txt`），七次样本里两次带得上名字，两次都在 `scroll`。
+Run 12's marker section is `scroll pass=0 step=38…49`, and this horizontal geometry's
+(`per=262`, `rowsPerViewport=5`, `max=64237`) loop upper bound is exactly `i=49`: `49×1310=64190 ≤ 64237 < 50×1310`.
+**That is, the step of "scrolling the list to the very bottom"**. Adding the 13:05 `live` arm (its markers only the two lines `open` + `scroll`,
+`docs/reports/stall-live-06-named-scroll.txt`), two of seven samples carried a name, both in `scroll`.
 
-**这两条合起来还不构成判定**，写清楚免得下次有人当结论用：发生率按这批大约 1/6–1/7，
-"跳掉 scroll 的 5 跑全绿"在 p≈0.15 下本身就有 ≈0.45 的概率发生，p≈0.25 时也有 ≈0.73 ⇒ 与"scroll 不是必要条件"**分不开**。
-下一步要分开的是**同一跳里的两半** —— `adj().value=` 那次重排，还是随后的 `sleep` 没回来；
-探针现在每步打两条标记（`step=i` 与 `step=i assigned value=…ms`），30 跑的一批正在量它。
+**These two together still do not constitute a verdict**, stated plainly so nobody uses it as a conclusion next time: the incidence in this batch is roughly 1/6–1/7,
+and "5 runs with scroll skipped all green" has about a 0.45 probability of happening at p≈0.15, and about 0.73 at p≈0.25 ⇒ **indistinguishable** from "scroll is not necessary".
+The next thing to separate is **the two halves of the same step** — whether it is the `adj().value=` re-layout, or the `sleep` after it failing to return;
+the probe now prints two markers per step (`step=i` and `step=i assigned value=…ms`), and a batch of 30 runs is measuring it.
 
-探针清单：
+Probe list:
 
-| 探针 | 判什么 |
+| Probe | What it judges |
 | --- | --- |
-| `01-search-equivalence` | entry 层过滤与**已删除的**逐类型 `search()` 覆写是否逐条等价（参照实现抄在文件里）。对 `_entries` 全量比对，不对 actor 比对 |
-| `02-lifecycle-modal` | 开/关/动画中途重开/快速连开关后 `modalActorFocusStack` 归零；索引导航；无匹配占位 |
-| `03-container-invariants` | `_entries` 有序、actor 镜像 `_filtered` 的正确切片、Home/End/Tab、内容改判焦点交接、live copy、删除、改时间戳重排 |
-| `04-windowed-structure` | 窗口化的 extent A/B、滚动对齐、焦点出窗与恢复、搜索窗口化、删除/重排 |
-| `05-windowed-cost` | 常驻集上界、RSS、滚动成本 —— **只报数不设闸**（见 [reading-the-log.md](reading-the-log.md) 与 [cost-measurement.md](cost-measurement.md)） |
-| `06-ux-hidden` | 01-05 不看、但人会感觉出来的东西：按类型分解的建行成本、滚动是否触发 DB 写、动画聚焦是否反复建销、选中项会不会在还可见时被销毁、滚动条滑块尺寸是否稳定、pin 与 `exclude-pinned` 的交互、空历史状态 |
-| `07-wiring` | 调用点对不对得上接收者的类：从源码推导 `this._x = new Cls(` + `this._x.m(`，把 `m` 解析到**活对象**上（取代原先那条永久误报的名字表 grep）。取不到活实例的类别记为 skipped 并打印出来，另含一次自我投毒证明它不是空转 |
-| `08-permissions` | 落盘内容的权限：在 enable **之前**亲手造出"旧版本留下的残留"（`images/`、`languages/`、`backup/sub/`、cache、config 各带文件，全部投毒成 0775/0644，外加一个指向树外 0644 文件的 symlink），enable 之后断言三根之内全为 0700/0600、树外那个文件**没被**穿过链接改掉 |
-| `09-cache-residue` | 搜索记忆表（内层 key 是**整条未截断的剪贴板内容**）是不是实例持有：从活对象取类再 `new` 一个 SearchEntry，必须是**空表且不是同一个 Map**；然后 `disable()` 必须把 `clipboardDialog` 放开。RSS 只报数不设闸（GJS 没有确定的回收点） |
-| `10-notification-loopgap` | 复制图片时主线程被钉住多久：`send-notification` 由探针自己打开（默认 false，没有任何一臂覆盖这条分支），fixture 里那张 1728x1056 图由 `make-fixture.js` 写真文件。**比例只报数不设闸**（实测 1.3–1.57 波动 vs 旧代码 2.1），可判的闸门是确定性那条：路径含转义的 URI 必须还能解出预览与尺寸 —— 旧代码把 `file://` 剥掉后当成路径交给 GdkPixbuf，含空格的图片路径直接解码失败 |
-| `11-grab-failure` | 抢模态被拒之后对话框的状态有没有收拾干净：`_updateCursor` 必须回到 true（否则 `show-at-pointer` 整会话失效）、modal 栈归零、被拒之后还能正常再开一次。**注入点只能是 `global.stage.grab`** —— `Main.pushModal` 是 `ui/main.js` 的具名导出，模块命名空间只读、改不了；而「先占住 SYSTEM_MODAL 再开」这条真实路线实测**不会被拒**（后到的请求拿走 grab，先前那个反而 `is_revoked()=true`），所以两种做法都跑一遍，真实那条只 `rec` 不 `chk` |
-| `12-actions-config` | 一份能解析、但没有 `actions` 的 `actions.json` 会不会把条目菜单、动作快捷键和整个 Actions 页一起打死。四条腿：**先写自己的哨兵**（一个只有一行合法动作的文件）等菜单报出那个 id → 换 `{}` 等菜单**离开哨兵** → 再换回哨兵（证明守卫不是「一律返回默认值」）→ 还原原文件并等菜单同意。去掉守卫的副本 **FAIL 6/8**（`not-an-array:undefined` + 2 条 unhandled rejection + 1 条归属 copyous 的 disposed），修好的 **PASS 8/8** |
-| `13-media-duration` | `gi://Gst` 唯一的服务对象：音频 File 条目上那个时长徽标。`make-fixture.js` 写一个 8kHz/16bit 的真 WAV（**名字带空格**，所以存进去的是 percent-encoded URI），期望时长**从文件自己的 RIFF 头算**（`dataSize / (rate * blockAlign)`），不是抄代码里的常量 —— 改长度不用改探针。窗口化下条目得先进视口，所以先按类型过滤成 5 条 File 行。十条腿含一条**负腿**：另一条非音频的 File 行不许长出时长控件（否则"切多了 case"也会绿灯）。2026-10-10 现场：`live 13` = **10/10**；把期望故意改成 +1 秒 → **FAIL 9/10** 并打印真实标签 `["48","48","KB","KB","3s","3s"]`，牙验过 |
+| `01-search-equivalence` | whether entry-layer filtering and the **deleted** per-type `search()` overrides are equivalent item by item (the reference implementation is copied into the file). Compares all of `_entries`, not actors |
+| `02-lifecycle-modal` | `modalActorFocusStack` zeroed after open/close/reopen mid-animation/rapid toggling; index navigation; the no-match placeholder |
+| `03-container-invariants` | `_entries` ordered, the actor mirroring the correct slice of `_filtered`, Home/End/Tab, content-change focus handover, live copy, deletion, re-sorting on a timestamp change |
+| `04-windowed-structure` | windowed extent A/B, scroll alignment, focus leaving and returning to the window, search windowing, deletion/re-sorting |
+| `05-windowed-cost` | resident-set ceiling, RSS, scrolling cost — **reported only, not gated** (see [reading-the-log.md](reading-the-log.md) and [cost-measurement.md](cost-measurement.md)) |
+| `06-ux-hidden` | the things 01-05 do not look at but a human feels: row-build cost broken down by type, whether scrolling triggers a DB write, whether animation focus builds and destroys repeatedly, whether a selected item is destroyed while still visible, whether the scrollbar thumb size is stable, the interaction of pin with `exclude-pinned`, the empty-history state |
+| `07-wiring` | whether call sites match the receiver's class: derives `this._x = new Cls(` + `this._x.m(` from the source and resolves `m` on the **live object** (replacing the old name-table grep that permanently false-alarmed). Categories with no live instance are recorded as skipped and printed, and it includes a self-poisoning proving it is not a no-op |
+| `08-permissions` | the permissions of on-disk content: **before** enable, create by hand the "residue left by an old version" (`images/`, `languages/`, `backup/sub/`, cache, config each with a file, all poisoned to 0775/0644, plus a symlink to an out-of-tree 0644 file), then after enable assert all three roots are 0700/0600 and that out-of-tree file **was not** changed through the link |
+| `09-cache-residue` | whether the search memo table (inner key being **the entire untruncated clipboard content**) is held by the instance: take the class from a live object and `new` a SearchEntry, which must be an **empty table and not the same Map**; then `disable()` must release `clipboardDialog`. RSS is reported only, not gated (GJS has no deterministic collection point) |
+| `10-notification-loopgap` | how long the main thread is pinned when copying an image: `send-notification` is turned on by the probe itself (default false, no arm covers this branch), and the 1728x1056 image in the fixture is written as a real file by `make-fixture.js`. **The ratio is reported only, not gated** (measured 1.3–1.57 fluctuation vs 2.1 in the old code); the decidable gate is the deterministic one: a URI path containing escapes must still resolve a preview and a size — the old code stripped `file://` and handed it to GdkPixbuf as a path, so an image path containing a space failed to decode outright |
+| `11-grab-failure` | whether the dialog's state is cleaned up after a rejected modal grab: `_updateCursor` must return to true (otherwise `show-at-pointer` is dead for the whole session), the modal stack must zero, and it must open again normally after a rejection. **The injection point can only be `global.stage.grab`** — `Main.pushModal` is a named export of `ui/main.js`, and a module namespace is read-only, unchangeable; and the real route of "hold SYSTEM_MODAL then open" measured as **not rejected** (the later request takes the grab, and the earlier one actually gets `is_revoked()=true`), so both approaches are run, with the real one only `rec`ed, not `chk`ed |
+| `12-actions-config` | whether an `actions.json` that parses but has no `actions` kills the entry menu, the action shortcuts, and the whole Actions page together. Four legs: **first write its own sentinel** (a file with a single valid action) and wait for the menu to report that id → swap in `{}` and wait for the menu to **leave the sentinel** → swap the sentinel back (proving the guard is not "always return defaults") → restore the original file and wait for the menu to agree. A copy with the guard removed **FAIL 6/8** (`not-an-array:undefined` + 2 unhandled rejections + 1 disposed attributed to copyous), the fixed one **PASS 8/8** |
+| `13-media-duration` | the one thing `gi://Gst` serves: the duration badge on an audio File entry. `make-fixture.js` writes a real 8kHz/16bit WAV (**name with a space**, so what is stored is a percent-encoded URI), and the expected duration is **computed from the file's own RIFF header** (`dataSize / (rate * blockAlign)`), not copied from a constant in the code — changing the length needs no probe change. Under windowing the entry must first enter the viewport, so filter by type down to 5 File rows. The ten legs include a **negative leg**: another non-audio File row must not grow a duration control (otherwise "cutting too many cases" would also go green). 2026-10-10 live: `live 13` = **10/10**; making the expectation deliberately +1 second → **FAIL 9/10** printing the real labels `["48","48","KB","KB","3s","3s"]`, teeth verified |
 
-### L2 真实会话（只读）
+### L2 real session (read-only)
 
-见 [reading-the-log.md](reading-the-log.md) 的 PID 取法 + [reading-the-log.md](reading-the-log.md) 的判读。
+See [reading-the-log.md](reading-the-log.md) for getting the PID + [reading-the-log.md](reading-the-log.md) for interpreting it.
 
-## 3. 隔离 headless shell 的边界
+## 3. The boundaries of the isolated headless shell
 
-`test/headless/up.sh` 靠六件事保证不污染真实环境，改这个脚本时这几条都不能破：
+`test/headless/up.sh` relies on six things to avoid polluting the real environment; none of them may be broken when editing this script:
 
-1. **私有 dbus-daemon**（`$WORK/bus`），不是用户会话总线。
-2. **`GSETTINGS_BACKEND=memory`** —— 读 schema 默认值，所有写入丢弃，真实 dconf 一个字节都不动。
-   它是**按进程**的，所以设置只能在 Eval 内部写，在外层 shell 里 `gsettings set` 对它无效。
-3. **`XDG_DATA_HOME=$WORK/xdg`**：扩展本体用 **symlink**（这样磁盘上的编辑会被加载），
-   app-data（`highlight.min.js`、`languages/`）用 **`cp -a` 复制**。symlink app-data 会让第二个
-   shell 写进真实的 `~/.local/share/copyous@local`。
-4. **`XDG_CACHE_HOME=$WORK/xdg-cache`**（空目录，cache 可再生）与
-   **`XDG_CONFIG_HOME=$WORK/xdg-config`**（把真实 `~/.config/*` 逐个 symlink 进来，唯独
-   `copyous@local` 是**真目录** + `cp -a` 的 `actions.json`）。这两条是 `makeStoredPrivate()`
-   逼出来的：它每次 enable 会 chmod 这三根，不隔离的话"跑一次探针"就顺手改了用户真实目录的权限。
-   config 用 symlink 农场而不是全新空目录，是为了让第二个 shell 看到的其余配置与真实会话一致。
-   ⚠ `copyous@local` 必须先跳过再建真目录 —— 先 symlink 它，`mkdir -p` 会变成对链接的空操作，
-   下面的 `cp -a` 就直接写进 `~/.config`（实测踩过，报 "are the same file"）。
-5. **`DEBUG_COPYOUS_DBPATH=$WORK/session.db`** —— 每个会话一份 fixture 拷贝，真实
-   `clipboard.db` 永不被打开。直接指向 `fixture.db` 会让探针的删除/改时间戳磨掉种子行数
-   （255→250），重跑不再幂等。
-6. 会话库的父目录（`$WORK`）会被 `gda.js` 的启动收紧改成 0700：所有者权限不受影响，
-   但别指望它是 0775。
+1. **A private dbus-daemon** (`$WORK/bus`), not the user session bus.
+2. **`GSETTINGS_BACKEND=memory`** — reads schema defaults, discards all writes, and touches not one byte of real dconf.
+   It is **per-process**, so settings can only be written inside Eval; `gsettings set` in an outer shell has no effect on it.
+3. **`XDG_DATA_HOME=$WORK/xdg`**: the extension body is a **symlink** (so on-disk edits get loaded), while
+   app-data (`highlight.min.js`, `languages/`) is **copied with `cp -a`**. Symlinking app-data would make the second
+   shell write into the real `~/.local/share/copyous@local`.
+4. **`XDG_CACHE_HOME=$WORK/xdg-cache`** (an empty directory, cache being regenerable) and
+   **`XDG_CONFIG_HOME=$WORK/xdg-config`** (symlinking the real `~/.config/*` one by one, except that
+   `copyous@local` is a **real directory** + a `cp -a`'d `actions.json`). These two were forced by `makeStoredPrivate()`:
+   it chmods these three roots on every enable, so without isolation "running a probe once" would casually change the permissions of the user's real directories.
+   The config uses a symlink farm rather than a fresh empty directory so that the second shell sees the rest of the config as the real session does.
+   ⚠ `copyous@local` must be skipped before creating the real directory — symlinking it first makes `mkdir -p` a no-op on the link, and
+   the `cp -a` below then writes straight into `~/.config` (hit in practice, reporting "are the same file").
+5. **`DEBUG_COPYOUS_DBPATH=$WORK/session.db`** — one fixture copy per session, and the real
+   `clipboard.db` is never opened. Pointing it directly at `fixture.db` would let the probes' deletion/timestamp changes wear down the seed row count
+   (255→250), so re-runs would no longer be idempotent.
+6. The session library's parent directory (`$WORK`) is tightened to 0700 at startup by `gda.js`: owner permissions are unaffected,
+   but do not expect it to be 0775.
 
-fixture 由 `make-fixture.js` 生成，与真实库同构（255 行 / 5 pinned / 6 种 type 分布），
-因为多条断言是对行数做算术（窗口化下滚动范围必须精确等于 `n*itemExtent + (n-1)*spacing`）。
-规模变了，断言就要跟着改。
+The fixture is generated by `make-fixture.js` and is isomorphic to the real library (255 rows / 5 pinned / a 6-type distribution),
+because several assertions do arithmetic on the row count (under windowing the scroll range must be exactly `n*itemExtent + (n-1)*spacing`).
+If the scale changes, the assertions must change with it.
 
-**探针的三条硬规矩**（都踩过）：
+**Three hard rules for probes** (all hit in practice):
 
-- 绝不用 `file://` URI 去 `import` 扩展模块。那会加载第二份模块图并重复注册 GType，扩展直接以
-  `Type name Gjs_common_gjs_JsObjectWrapper is already registered` 起不来。类要从活对象上取
-  （见 `_preamble.js` 里 `Object.getPrototypeOf(...searchQuery).constructor`）。
-- 绝不读已销毁 actor 的属性，`get_parent()` 也算。GJS 打的是 CRITICAL 警告不是 JS 异常，
-  `try/catch` 拦不住，会让一次干净的运行看起来坏了。
-- **不要在同一个会话里二次 enable。** harness 是绕过扩展管理器直接 `_callExtensionInit` +
-  `_callExtensionEnable` 的，管理器的状态从没变成过 ENABLED，所以 `disableExtension()` 是空操作，
-  第二次 enable 会撞 `Extension point conflict: there is already a status indicator for role
-  copyous@local`，然后填充拿到 0 条（2026-10-09 探针 09 第一版就是这么红的 —— **红的是探针，不是产品**）。
-  要证明"东西是实例持有、不是模块持有"，用**活对象取类再 new 一个实例**比对身份（探针 09 现在的做法）。
-- **异步生效的投毒要等「离开自己写的哨兵」，不是等「变成预期值」。** 探针 12 第一版写完 `{}` 之后
-  问「actions 还是数组吗」，旧代码照样答是 —— 因为改动还没落地，读到的是**上一份好配置**，于是把
-  去掉守卫的副本测成 7/7 全绿。现在每条腿都以「我先写进去的那个可辨识值」为锚点等它变化，等不到就
-  超时判红。**green 必须是等出来的，不是睡出来的。**
+- Never `import` an extension module via a `file://` URI. That loads a second module graph and re-registers GTypes, and the extension fails to start with
+  `Type name Gjs_common_gjs_JsObjectWrapper is already registered`. Take classes from live objects
+  (see `Object.getPrototypeOf(...searchQuery).constructor` in `_preamble.js`).
+- Never read a property of a destroyed actor, `get_parent()` included. GJS prints a CRITICAL warning, not a JS exception,
+  so `try/catch` cannot stop it, and it makes a clean run look broken.
+- **Do not enable a second time within the same session.** The harness bypasses the extension manager with `_callExtensionInit` +
+  `_callExtensionEnable` directly, and the manager's state never becomes ENABLED, so `disableExtension()` is a no-op and
+  a second enable collides with `Extension point conflict: there is already a status indicator for role
+  copyous@local`, after which the fill gets 0 entries (2026-10-09's probe 09 first version went red exactly this way — **what was red was the probe, not the product**).
+  To prove "something is instance-held, not module-held", use **taking the class from a live object and `new`ing an instance** and comparing identity (what probe 09 does now).
+- **A poisoning that takes effect asynchronously must wait for "leaving the sentinel I wrote", not for "becoming the expected value".** Probe 12's first version, after writing `{}`,
+  asked "is actions still an array", and the old code still answered yes — because the change had not landed and it was reading the **previous good config**, so it tested the
+  guard-removed copy as 7/7 green. Now every leg waits, anchored on "the identifiable value I wrote in first", for it to change, and times out red if it does not.
+  **Green must be waited for, not slept for.**
 
-## 10. headless 能证明什么、不能证明什么
+## 10. What headless can and cannot prove
 
-**能**：语义等价（01）、结构与生命周期不变量（02/03）、extent 精确性与窗口化行为（04）、
-常驻集规模与相对成本（05）、CRITICAL / JS ERROR 的存在与否。
+**Can**: semantic equivalence (01), structural and lifecycle invariants (02/03), extent exactness and windowing behaviour (04),
+resident-set size and relative cost (05), the presence or absence of CRITICAL / JS ERROR.
 
-**不能**：
+**Cannot**:
 
-- 它用 memory settings backend，**不等于**你的真实 dconf。配置差异靠 `configs/*.json` 显式建模，
-  不靠"应该差不多"。
-- 虚拟 monitor 是 1280x800，`page_size` 实测 378px；真实会话是 535px。所以**窗口大小、每屏条目数
-  这类结论必须标注来自哪一臂**，跨臂比较没有意义。
-- 它测不到 swap 压力。本机最初诊断出的"898MB 被换出 → major fault 风暴"是真实会话特有的，
-  headless 只能证明"不再分配那么多"，证不了"因此不卡"。后者要 [baseline.md](baseline.md) 的 live 数字。
-- fixture 是合成的。文件条目指向**不存在**的路径 —— 这其实是好事：正是它暴露了
-  `FileItem.configureFilePreview()` 在 await 之后不检查 cancellation、条目被销毁后继续写
-  已 dispose 的 `St.Label` 这个竞态（窗口化把销毁从"偶尔"变成"滚动时持续发生"）。
+- It uses the memory settings backend, which is **not** your real dconf. Config differences are modelled explicitly via `configs/*.json`,
+  not via "should be about the same".
+- The virtual monitor is 1280x800, with `page_size` measured at 378px; the real session is 535px. So conclusions like **window size and entries per screen
+  must state which arm they come from**; cross-arm comparison is meaningless.
+- It cannot measure swap pressure. The "898MB swapped out → major-fault storm" this machine first diagnosed is specific to a real session;
+  headless can only prove "it no longer allocates that much", not "therefore it does not stutter". The latter needs the live numbers in [baseline.md](baseline.md).
+- The fixture is synthetic. File entries point at paths that **do not exist** — which is actually a good thing: it is exactly what exposed
+  the race where `FileItem.configureFilePreview()` does not check cancellation after an await and keeps writing a disposed `St.Label` after the entry is destroyed
+  (windowing turning destroy from "occasional" into "continuous during scrolling").

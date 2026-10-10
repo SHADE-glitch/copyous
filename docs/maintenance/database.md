@@ -1,36 +1,41 @@
-# 数据库纪律：位置、权限、备份、增长
+# Database discipline: location, permissions, backup, growth
 
-剪贴板历史是明文用户数据。动它之前必读的一页：文件落在哪、权限收成什么样、改之前怎么备份、250/500 条的分层。
+Clipboard history is plaintext user data. A page to read before touching it: where the files land, what the permissions are tightened to, how to back up before a change, and the 250/500-entry tiers.
 
-> **来历**：从 `MAINTENANCE.md`（拆分前 520 行 / 12 节）搬来的第 7 节。搬动是逐字复制，
-> 只有相对链接按新目录层级改写过。这个文件是这些事实的唯一主人，别在别处复述一遍。
+> **Origin**: section 7, moved verbatim from `MAINTENANCE.md` (520 lines / 12 sections before the split);
+> only the relative links were rewritten for the new directory level. This file is the sole owner of
+> these facts; do not restate them elsewhere.
 
 
-## 7. 数据库纪律
+## 7. Database discipline
 
-- live DB：`~/.local/share/copyous@local/clipboard.db`（WAL 模式，另有 `-wal` / `-shm`）。
-- **权限**：库里是逐字明文历史，所以这三根目录（`$XDG_DATA_HOME`/`$XDG_CACHE_HOME`/
-  `$XDG_CONFIG_HOME` 下的 `copyous@local`）内一律目录 0700、文件 0600。机制是两层：
-  每个写盘点带 `Gio.FileCreateFlags.PRIVATE` + 写完 `GLib.chmod`（`PRIVATE` 只管新建文件，
-  覆盖写会沿用旧模式，所以补一次 chmod），以及 `enable()` 开头的 `makeStoredPrivate()`
-  把**已经躺在盘上的**残留一并纠正（写盘点纠正不了"用户再也不写的那个文件"）。
-  判据由探针 08 持有；`database-location` 指到 `$HOME` 之外时，DB 自己的目录也会被
-  `gda.js` 收成 0700。
-  ⚠ `GLib.chmod(path, mode)` 是这里唯一可用的调用：`Gio.File.set_attribute_uint32`
-  设 `unix::set-perms` 被本地后端拒绝（"not supported"），`gi://Unix` 无 typelib，
-  `gi://GioUnix` 不内省 chmod/mkdir。
-  ⚠ 遍历必须带 `Gio.FileQueryInfoFlags.NOFOLLOW_SYMLINKS`：不带时链接被报成普通文件
-  （mode 777），`chmod` 就穿过链接改到树外的文件 —— 沙箱实测把一个 0644 的树外文件改成了 0600，
-  探针 08 的 `symlinkTargetUntouched` 就是钉这条的。
-- **任何涉及 DB 的改动之前先备份**到 `~/.local/share/copyous@local/backup/`，命名
-  `clipboard-prediag-<YYYYMMDD-HHMMSS>.db`，备份后跑一次 `PRAGMA integrity_check`。
-  备份也是明文历史，`makeStoredPrivate()` 会把它们收进 0700/0600；确认不再需要时**删之前问用户**。
-- 只读查询一律用 URI 形式带 `mode=ro`，避免误触发 checkpoint：
+- live DB: `~/.local/share/copyous@local/clipboard.db` (WAL mode, plus `-wal` / `-shm`).
+- **Permissions**: the library holds verbatim plaintext history, so inside these three roots (the
+  `copyous@local` under `$XDG_DATA_HOME` / `$XDG_CACHE_HOME` / `$XDG_CONFIG_HOME`) directories are
+  always 0700 and files 0600. The mechanism has two layers: every write site carries
+  `Gio.FileCreateFlags.PRIVATE` + a `GLib.chmod` after the write (`PRIVATE` only covers newly
+  created files; an overwrite keeps the old mode, so chmod once more), and `makeStoredPrivate()` at
+  the start of `enable()` corrects residue **already sitting on disk** as well (a write site cannot
+  fix "the file the user never writes again"). The criterion is held by probe 08; when
+  `database-location` points outside `$HOME`, the DB's own directory is also tightened to 0700 by
+  `gda.js`.
+  ⚠ `GLib.chmod(path, mode)` is the only usable call here: `Gio.File.set_attribute_uint32` setting
+  `unix::set-perms` is rejected by the local backend ("not supported"), `gi://Unix` has no typelib,
+  and `gi://GioUnix` does not introspect chmod/mkdir.
+  ⚠ A walk must carry `Gio.FileQueryInfoFlags.NOFOLLOW_SYMLINKS`: without it a link is reported as a
+  regular file (mode 777), and `chmod` then follows the link to change a file outside the tree — a
+  sandbox measurement changed an out-of-tree 0644 file to 0600, and probe 08's
+  `symlinkTargetUntouched` pins exactly this.
+- **Back up before any change that touches the DB** to `~/.local/share/copyous@local/backup/`, named
+  `clipboard-prediag-<YYYYMMDD-HHMMSS>.db`, and run a `PRAGMA integrity_check` after backing up.
+  Backups are plaintext history too; `makeStoredPrivate()` tightens them to 0700/0600; when you are
+  sure they are no longer needed, **ask the user before deleting**.
+- Read-only queries always use the URI form with `mode=ro`, to avoid accidentally triggering a checkpoint:
   ```sh
   sqlite3 "file:$HOME/.local/share/copyous@local/clipboard.db?mode=ro" 'select count(*) from clipboard;'
   ```
-  表名是 `clipboard`（不是 `entries`），有 `UNIQUE(type, content)` 约束 —— 它就是去重机制，
-  批量造数据时撞它是正常的。
-- `.gitignore` 已排除 `*.db*`。仓库根可能有个 0 字节的 `clipboard.db` 残留（来自
-  `DEBUG_COPYOUS_DBPATH` 未生效的旧运行），无害，别去提交它。
-- headless 永远走 fixture，**绝不**把 `DEBUG_COPYOUS_DBPATH` 指向 live DB。
+  The table is `clipboard` (not `entries`), with a `UNIQUE(type, content)` constraint — that is the
+  deduplication mechanism, so colliding with it while bulk-generating data is normal.
+- `.gitignore` already excludes `*.db*`. The repo root may have a 0-byte `clipboard.db` residue (from
+  an old run where `DEBUG_COPYOUS_DBPATH` did not take effect); harmless, do not commit it.
+- headless always goes through the fixture, and **never** points `DEBUG_COPYOUS_DBPATH` at the live DB.

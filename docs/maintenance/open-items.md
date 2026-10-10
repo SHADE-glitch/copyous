@@ -1,44 +1,45 @@
-# 已知不修 / 待确认
+# Known unfixed / to be confirmed
 
-这里只放「知道、但故意没修」和「等你拍板」两类。已经修完并有门守着的，在 `CHANGELOG.md` 与 README 的分歧清单里。
+This holds only two classes: "known, but deliberately not fixed" and "awaiting your call". Anything already fixed and guarded lives in `CHANGELOG.md` and the README divergence list.
 
-> **来历**：从 `MAINTENANCE.md`（拆分前 520 行 / 12 节）搬来的第 12 节。搬动是逐字复制，
-> 只有相对链接按新目录层级改写过。这个文件是这些事实的唯一主人，别在别处复述一遍。
+> **Origin**: section 12, moved verbatim from `MAINTENANCE.md` (520 lines / 12 sections before the split);
+> only the relative links were rewritten for the new directory level. This file is the sole owner of
+> these facts; do not restate them elsewhere.
 
 
-## 12. 已知不修 / 待确认
+## 12. Known unfixed / to be confirmed
 
-不在这里重复，指针：
+Not repeated here; pointers:
 
-- 有意未修的分歧点与理由 → [README.zh-CN.md](../../README.zh-CN.md#已知但有意未修的分歧点)
-  （含横向列表 15px/端的 extent 偏差、`deleteOldest` 的字符串手术、`highlightAuto` 切片长度等）
-- **复制图片仍会钉住主线程一次，约 24–46ms（2026-10-09 实测）**。`NotificationManager.preview()` 已经把两趟全量解码（`get_file_info` + `new_from_file_at_scale`，旧代码 46–130ms）压成一趟，但**压不到零**：gdk-pixbuf 的 PNG 路径在数据结束才 inflate —— 把 `PixbufLoader` 按 64KB 切片、片间让出主循环，实测每片 0.5–0.9ms 而 `close()` 仍 62ms；`new_from_stream_at_scale_async` 也只是异步读，解码还是 32–50ms 一整块。再往下只有两条路：通知里不放图片预览（= 删功能），或起子进程解码（= 新机制）。两条都要用户拍板，所以这里只记不修。判据与数值见探针 10 与 `lib/misc/notifications.js` 的注释。
-- **没有任何判据保证 journal 里不出现剪贴板正文。** D-050 改掉的是当场找到的两处（`Unknown item type`
-  打印整个 entry；动作的 stderr 原样落盘，而它的 stdin 就是条目正文）。这类泄漏至今**没有门**：
-  `shell-internals.mjs` 只数依赖，探针只在隔离库里跑，没人回头看日志内容。可做的形状是现成的 ——
-  fixture 的正文是已知合成本文，L1 可以拿它当哨兵：任何会话的 shell 日志里出现 fixture 条目正文的
-  一行就红。代价是每个会话多一次全文比对，并且要放过 id、时长、字节数这类合法数字。等你点头。
-- **探针超时会偶发把嵌套壳的主线程钉死；本会话见过 7 次，其中两次有阶段名，两次都落在 `scroll`（2026-10-10）**。
-  七次是：horizontal/`06-ux-hidden` 四次（09:52、10:25、12:06、13:17）、`live`/`06` 一次（13:05）、
-  unwindowed/`06` 一次（10:48）、unwindowed/`07-wiring` 一次（10:56）。同一件事立刻重跑又全绿：
-  `run.sh all 06` 里 12:32 那轮**三条臂全绿**、批量 1 的 12 跑里 11 跑绿 ⇒ **间歇、不可按需复现**，
-  读数 `docs/reports/06-phasebudget-three-arms.txt`、`/tmp/bisect-06.log`。
-  钉死时测到：主线程 `state=S`、`wchan=futex_do_wait`、6 秒内 `utime+stime` 一字不动（**不是在忙**）；`gdbus` 的 `Eval` 8 秒无应答；
-  SIGTERM 无效（要靠 D-053 的 KILL 升级才收得走）；unwindowed 那两次日志停在 `warmup took` 之后、**对话框根本没开**（没有 `open():` 行），
-  horizontal 那次则走到过 open() 并在 206 条 `Can't update stage views actor … needs an allocation` 之后完全沉默。
-  **已排除四条**：媒体时长的正常路径 —— `13-media-duration` 三臂都绿，时长与 wav 的 RIFF 头推导一致；
-  **并发媒体探测把主线程锁死** —— 定向实验里两条 pipeline 同时在飞、各带那圈 50ms 轮询，**53ms 双双落定**
-  （`PASS 2/2`；不轮询时 12ms 就返回，且 `ok=false`、`dur=-1` —— 立即查询本来就取不到时长），
-  原文 `docs/reports/media-race-concurrency.txt` ⇒ 这个形状**不成立**；死循环 —— CPU 是冻住的；
-  探针前缀撞车 —— 那是 D-054，且它的标志是 eval 路径不存在。
-  最新一次的快照还排除换页：`majflt 9 → 9` / `majflt 8 → 8`、`SwapFree 14472896 kB`，而线程表里有 `wavparse0:sink` 与 `typefind:sink`。
-  **归因到哪一步了**（D-059）：`co.phase` 开工前打一行标记、快照多一节 `probe phases reached:` 把它从噪声里捞出来，
-  于是 13:05 那次报出 `open` + `scroll`（没有后续），13:17 那次报出 `scroll pass=0 step=38…49` ——
-  横向 `per=262 rowsPerViewport=5 max=64237` 的循环上界正是 i=49，也就是**"滚到最底"那一步**。
-  两次带名字的样本都在 `scroll`，但**这不等于原因就在这里**：跳掉 `scroll` 的 5 跑全绿，在这个发生率下不构成判定。
-  **还没分开的那件事**：那一步里卡的是 `adj().value=` 触发的重排，还是随后的 `sleep` 没回来 —— 现在每步打两条标记
-  （`step=i` 与 `step=i assigned value=…ms`），批量 2 的 30 跑就是冲它去的。
-  另外三条仪器侧的已做掉：(c) 超时快照（D-055 / `3bbc8ae`）、(a) 阶段预算（D-057）、二分用的
-  `CO_SKIP_PHASES` 旋钮与它的守卫（D-059）。真实会话（竖向 + 固定行高）没观察到，但 06 量的就是滚动，
-  横向还是全新安装的默认布局，所以不能记成"产品面为零"。
-- 给 agent 的硬规则（不许 rebase / 不许改 uuid / 不许引入构建链 / 提交规范）→ [AGENTS.md](../../AGENTS.md)
+- Deliberate unfixed divergences and their reasons → [README.zh-CN.md](../../README.zh-CN.md#已知但有意未修的分歧点)
+  (including the horizontal-list 15px-per-end extent offset, `deleteOldest`'s string surgery, `highlightAuto`'s slice length, etc.)
+- **Copying an image still pins the main thread once, ~24–46ms (measured 2026-10-09)**. `NotificationManager.preview()` has already compressed two full decodes (`get_file_info` + `new_from_file_at_scale`, 46–130ms in the old code) into one, but **cannot compress it to zero**: gdk-pixbuf's PNG path inflates only at the end of the data — slicing `PixbufLoader` into 64KB chunks and yielding the main loop between them measured 0.5–0.9ms per chunk but still 62ms in `close()`; `new_from_stream_at_scale_async` only reads asynchronously, the decode is still one 32–50ms block. Below that there are only two paths left: no image preview in the notification (= deleting a feature), or decoding in a subprocess (= new machinery). Both need the user's call, so this is recorded as unfixed only. Criteria and values are in probe 10 and the comment in `lib/misc/notifications.js`.
+- **No criterion guarantees that clipboard body text never appears in the journal.** D-050 fixed the two places found on the spot (`Unknown item type`
+  printing the whole entry; the action's stderr landing verbatim, and its stdin is the entry body). This class of leak still **has no gate**:
+  `shell-internals.mjs` only counts dependencies, the probes run only in the isolated library, and nobody looks back at log content. The shape to do it is ready-made —
+  the fixture's body text is known synthetic text, and L1 can use it as a sentinel: any line of fixture entry body appearing in any session's shell log
+  goes red. The cost is one extra full-text comparison per session, plus having to let legitimate numbers like ids, durations, and byte counts through. Awaiting your nod.
+- **A probe timeout intermittently pins the nested shell's main thread; 7 seen this session, two of them with a section name, both in `scroll` (2026-10-10)**.
+  The seven: horizontal/`06-ux-hidden` four times (09:52, 10:25, 12:06, 13:17), `live`/`06` once (13:05),
+  unwindowed/`06` once (10:48), unwindowed/`07-wiring` once (10:56). Re-running the same thing immediately goes green again:
+  in `run.sh all 06` the 12:32 round was **green on all three arms**, and 11 of batch 1's 12 runs were green ⇒ **intermittent, not reproducible on demand**,
+  readings in `docs/reports/06-phasebudget-three-arms.txt`, `/tmp/bisect-06.log`.
+  When hung, measured: main thread `state=S`, `wchan=futex_do_wait`, `utime+stime` unchanged over 6 seconds (**not busy**); `gdbus`'s `Eval` unanswered for 8 seconds;
+  SIGTERM ineffective (needs D-053's KILL escalation to be reaped); the two unwindowed runs stopped after `warmup took` with **the dialog never opened** (no `open():` line),
+  while the horizontal one reached open() and then went completely silent after 206 `Can't update stage views actor … needs an allocation` lines.
+  **Four things ruled out**: the normal media-duration path — `13-media-duration` is green on all three arms, and the duration matches the wav's RIFF-header derivation;
+  **concurrent media probing locking the main thread** — in a targeted experiment two pipelines were in flight at once, each with that 50ms poll, and **both settled in 53ms**
+  (`PASS 2/2`; without polling it returns in 12ms, with `ok=false`, `dur=-1` — an immediate query never gets a duration anyway),
+  transcript `docs/reports/media-race-concurrency.txt` ⇒ this shape **does not hold**; a busy loop — the CPU is frozen;
+  a probe-prefix collision — that is D-054, and its signature is a nonexistent eval path.
+  The latest snapshot also rules out paging: `majflt 9 → 9` / `majflt 8 → 8`, `SwapFree 14472896 kB`, while the thread table shows `wavparse0:sink` and `typefind:sink`.
+  **How far attribution has come** (D-059): `co.phase` prints a marker line before starting and the snapshot gains a `probe phases reached:` section that fishes it out of the noise,
+  so the 13:05 run reported `open` + `scroll` (nothing after), and the 13:17 run reported `scroll pass=0 step=38…49` —
+  the horizontal `per=262 rowsPerViewport=5 max=64237` loop's upper bound is exactly i=49, i.e. **the "scroll to the very bottom" step**.
+  Both named samples are in `scroll`, but **that does not mean the cause is here**: 5 runs with `scroll` skipped all went green, which at this incidence does not constitute a verdict.
+  **What is still not separated**: whether what sticks in that step is the `adj().value=`-triggered re-layout, or the `sleep` after it failing to return — each step now prints two markers
+  (`step=i` and `step=i assigned value=…ms`), and batch 2's 30 runs are aimed at it.
+  Three more instrument-side items are done: (c) the timeout snapshot (D-055 / `3bbc8ae`), (a) phase budgets (D-057), and the
+  `CO_SKIP_PHASES` knob used for bisection with its guard (D-059). Not observed in a real session (vertical + fixed row height), but 06 measures exactly scrolling,
+  and horizontal is the default layout of a fresh install, so it cannot be recorded as "zero on the product surface".
+- Hard rules for agents (no rebase / no changing the uuid / no introducing a build chain / commit conventions) → [AGENTS.md](../../AGENTS.md)

@@ -9,6 +9,14 @@ criteria, windowing gates, database discipline, the platform matrix, the current
 lives one page each under `docs/maintenance/`. One fact has one owner; this file states the rules
 that must not be broken, not the measurements.
 
+> **Shared standard.** Root file names, the process-draft location (`docs/reports/`), the
+> `CHANGELOG` entry format, CI version pinning and entry commands, the test entry command, and
+> the runtime ignore list are defined once in the machine-wide `STANDARD.md` (outside this
+> repository) and are not restated here.
+>
+> **Push over SSH, never HTTPS.** Verify `git remote get-url --push origin` starts with `git@`
+> before pushing; if it starts with `https://`, fix it first — never push over HTTPS.
+
 ## Critical Rules
 - **NEVER run `gnome-extensions install` or `gnome-extensions pack` from within this repo directory.** The install tool follows symlinks and will wipe the source directory contents.
 - **Do not load ESModules via legacy `imports`** (e.g. `imports.ui.main` throws `SyntaxError` in GNOME 45+). Use static `import` or dynamic `await import()`.
@@ -181,7 +189,6 @@ that must not be broken, not the measurements.
 - `new Color(space, c1, c2, c3)` with no alpha argument leaves `alpha = NaN` (`Math.clamp(undefined, 0, 1)`), so `toString()` emits `rgb(10 20 30 / NaN)`. No current caller omits alpha, so this is latent rather than live — but any new caller must pass one.
 
 ## Docs & Commits
-- `README.md` and `README.zh-CN.md` are a **two-file bilingual pair** — edit both together.
 - The Chinese README is the **authoritative divergence list**; the English one deliberately points at it instead of duplicating it. Do not "fix" that asymmetry.
 - **Do not touch the `Credits & Attribution` / `Changes vs upstream (2.0.1)` sections** unless the change actually affects attribution or the upstream diff.
 - Commit code first, docs in a separate commit. Commit messages use **Chinese subjects with English conventional-commit prefixes** (`fix:` / `perf:` / `test:` / `docs:` / `chore:`).
@@ -207,7 +214,7 @@ that must not be broken, not the measurements.
 - An entry is an assertion **as of its commit**, not current state: never re-verify an old entry,
   never hand-copy an aggregate count into it — `check:log` and `git rev-list --count` print them.
 - Known-but-not-fixed issues do **not** go in `CHANGELOG.md` (they have no commit). They live in
-  "本文 Known issues" above, `docs/maintenance/open-items.md` and the README's deliberately-unfixed ledger.
+  "Known issues (recorded, not fixed)" above, `docs/maintenance/open-items.md` and the README's deliberately-unfixed ledger.
 - `Symptom` names the mechanism, never the session: this extension holds the user's clipboard, so
   no copied text, file path, URL or application name from a real desktop may appear. `D-012` is the
   reason to be strict — untrusted user content already reaches the database layer.
