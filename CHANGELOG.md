@@ -356,3 +356,10 @@ Change   `scripts/check-log.mjs --invariants` 现场打印所有 `kind:fix` 条�
 Evidence L0 投毒：往 `INVARIANTS.md` 追加一行 CHANGELOG 的 `Symptom` 原文 → `not ok 1`，报错点名那一行；恢复后 5/5 绿。章节号那条第一次跑就抓到了我自己新写的页面
 Cost     禁用的字符用 `String.fromCharCode` 构造，不写死 —— 守卫把禁的东西写进自己源码里就会踩自己。`docs/reports/` 的豁免也反向验过：在日期报告里加一个编号必须仍然绿
 Commit   aeb5f2f
+
+### D-048 · 2026-10-10 · guard · v9
+Symptom  `shell-internals.mjs` 打印的 `statically imported namespaces` 把 prefs 进程的文件算进同一个集合，于是这一行里出现 `Gtk` 与 `Gdk` —— 而 `docs/maintenance/compatibility-matrix.md` 写的负事实是"shell 进程里没有 `gi://Gtk` / `gi://Gdk`"，仪器与文档当面互相矛盾。更要紧的是规则 2 抓不到 shell 侧的 Gtk：担保集合为了让 prefs 用 Adw/Gtk 把这两个名字收了进去，那条规则对它们**是瞎的**
+Change   按安装集分开：打印成 `statically imported (shell-side)` 与 `statically imported (prefs process)`，`--json` 里 `staticallyImported` 改 shell 侧口径、新增 `staticallyImportedByPrefsOnly`；`test/shell-internals.test.js` 补一条分进程断言（shell 侧不许有 Gtk/Gdk，且 prefs-only 集合必须正好是 `Adw, Gdk, Gtk`）
+Evidence L0 投毒：往 `lib/` 放一个 `import Gtk from 'gi://Gtk?version=4.0'` 的文件 → `not ok 3 - no Gtk or Gdk on the shell side, and the prefs-only set is named`；删掉后 114/114 绿、`RESULT: PASS`
+Cost     顺带定下一条从没写下来的事实：`Adw` 也只属于 prefs 进程，shell 侧现场是 Clutter, Cogl, GLib, GObject, GdkPixbuf, Gio, Graphene, Meta, Pango, Shell, Soup, St（12 个）。prefs-only 集合一旦变化，说明两个进程的分界挪了，那条断言会先红
+Commit   9a70edd

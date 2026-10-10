@@ -62,6 +62,12 @@
   ```
 
   空输出才对。历史上我因为漏了这个边界，把 `GdkPixbuf` 误报成"Gtk 泄漏进 shell"，那次是**假**的。
+  这条现在不必再靠人跑 grep：`node scripts/shell-internals.mjs` 把两个安装集分开打印
+  （`statically imported (shell-side)` 与 `statically imported (prefs process)`，后者现场是
+  `Adw, Gdk, Gtk`），`test/shell-internals.test.js` 断言 shell 侧那两个名字不出现、且 prefs-only
+  集合正好是这三个 —— 集合变了就说明两个进程的分界挪了。
+  （在此之前仪器的打印行没分进程，把 prefs 侧的 Gtk/Gdk 算进"静态导入集合"，看起来正好在否定
+  本条事实；这条负事实当时不可查。）
 - **没有构建步骤**。`gschemas.compiled` 与两个 `.gresource` 是提交进仓库的产物，所以
   本机不需要 glib-compile-schemas / glib-compile-resources。装了也不该跑 —— 跑出来的产物
   和提交的不一致时，改的是源码还是产物要先分清楚，那是另一个坑。
