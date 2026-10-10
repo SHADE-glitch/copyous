@@ -3,7 +3,7 @@ import Gio from 'gi://Gio';
 
 import { Extension } from 'resource:///org/gnome/shell/extensions/extension.js';
 
-import { getDataPath, getHljsLanguages, getHljsPath } from './lib/common/constants.js';
+import { getDataPath, getHljsLanguages, getHljsPath, makeStoredPrivate } from './lib/common/constants.js';
 import { DbusService } from './lib/common/dbus.js';
 import { migrateSettings } from './lib/common/settings.js';
 import { tryCreateSoundManager } from './lib/common/sound.js';
@@ -66,6 +66,15 @@ export default class CopyousExtension extends Extension {
 		migrateSettings(this.settings);
 		this.logger = this.getLogger();
 		const error = this.logger.error.bind(this.logger);
+
+		// History is stored verbatim, so anything already on disk is corrected before the
+		// first write of this session. The catch is here because enable() must not depend on
+		// a directory still being there mid-walk -- a lost chmod is logged, never fatal.
+		try {
+			makeStoredPrivate(this);
+		} catch (err) {
+			error(err);
+		}
 
 		// Highlight.js
 		this.initHljs().catch(error);
