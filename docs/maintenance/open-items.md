@@ -37,8 +37,14 @@ Not repeated here; pointers:
   so the 13:05 run reported `open` + `scroll` (nothing after), and the 13:17 run reported `scroll pass=0 step=38…49` —
   the horizontal `per=262 rowsPerViewport=5 max=64237` loop's upper bound is exactly i=49, i.e. **the "scroll to the very bottom" step**.
   Both named samples are in `scroll`, but **that does not mean the cause is here**: 5 runs with `scroll` skipped all went green, which at this incidence does not constitute a verdict.
-  **What is still not separated**: whether what sticks in that step is the `adj().value=`-triggered re-layout, or the `sleep` after it failing to return — each step now prints two markers
-  (`step=i` and `step=i assigned value=…ms`), and batch 2's 30 runs are aimed at it.
+  **Now separated — batch 2 (30 runs, 2026-10-10)**: the two markers answer the question the note above left open.
+  **Every stall — 13/13 in this batch plus the 6 earlier 450s-timeout runs (19/19) — stops at the bare `step=i` and never reaches the
+  `step=i assigned value=…ms` line**, so what sticks is the **`adj().value=` re-layout itself, never the `sleep` after it**.
+  It always lands on the loop's **final** step (the jump to the very bottom: horizontal `step=49`, one sample at `pass=1`; the single
+  `live` stall at `step=81`), and it **requires the `scroll` phase**: 0 stalls in 7 runs with it skipped vs 13 in 23 with it
+  (Fisher two-sided p = 0.0104), the horizontal geometry (12/17) hit far harder than `live` (1/6). Full data in
+  `docs/reports/batch2-result.txt`; recipe `/tmp/bisect-06b.sh` with its resume `-06c.sh`.
+  The hang is still un-fixed — this is the boundary batch 1 could only execute, now decided.
   Three more instrument-side items are done: (c) the timeout snapshot (D-055 / `3bbc8ae`), (a) phase budgets (D-057), and the
   `CO_SKIP_PHASES` knob used for bisection with its guard (D-059). Not observed in a real session (vertical + fixed row height), but 06 measures exactly scrolling,
   and horizontal is the default layout of a fresh install, so it cannot be recorded as "zero on the product surface".

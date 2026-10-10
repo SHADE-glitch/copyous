@@ -249,7 +249,20 @@ Run 12's marker section is `scroll pass=0 step=38…49`, and this horizontal geo
 **These two together still do not constitute a verdict**, stated plainly so nobody uses it as a conclusion next time: the incidence in this batch is roughly 1/6–1/7,
 and "5 runs with scroll skipped all green" has about a 0.45 probability of happening at p≈0.15, and about 0.73 at p≈0.25 ⇒ **indistinguishable** from "scroll is not necessary".
 The next thing to separate is **the two halves of the same step** — whether it is the `adj().value=` re-layout, or the `sleep` after it failing to return;
-the probe now prints two markers per step (`step=i` and `step=i assigned value=…ms`), and a batch of 30 runs is measuring it.
+the probe now prints two markers per step (`step=i` and `step=i assigned value=…ms`), and batch 2 has now measured it (below).
+
+**The boundary is decided** (batch 2, 30 runs, 2026-10-10; recipe `/tmp/bisect-06b.sh` + resume `-06c.sh`, data `docs/reports/batch2-result.txt`):
+
+`06` ran 30 times — 22 horizontal (5 with `CO_SKIP_PHASES=scroll`) and 8 live (2 skipping scroll):
+
+| Arm | Runs | Stalled |
+| --- | --- | --- |
+| horizontal, scroll included | 17 | 12 (71%) |
+| horizontal, scroll skipped | 5 | 0 |
+| live, scroll included | 6 | 1 (17%) |
+| live, scroll skipped | 2 | 0 |
+
+Pooled: scroll **included 13/23** vs **skipped 0/7** (Fisher exact two-sided p = 0.0104; horizontal alone 12/17 vs 0/5, p = 0.0096; the live arm alone has too few runs). Because the probe prints `step=i` *before* `adj().value=` and `step=i assigned value=…ms` *after* it (D-059 ②), **every stall — 13/13 here plus the 6 of batch 1's 450s-timeout runs (19 total) — stops at the bare `step=i` and never reaches the `assigned value` line**. So the boundary batch 1 left open is closed: **the freeze is inside the `adj().value=` re-layout, never the `sleep` after it.** It always lands on the loop's **final** step (the "scroll to the very bottom"; horizontal i=49, one sample at pass=1; live i=81), and it **requires the `scroll` phase** — removing it gave 0 stalls in 7 runs.
 
 Probe list:
 
