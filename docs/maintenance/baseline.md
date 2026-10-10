@@ -45,7 +45,7 @@ journalctl --no-pager -o cat --since '2026-10-10 11:19:34' _PID=350714 \
 ```
 loaded 255 entries in 93.293ms   filled 255 entries in 127.596ms   warmup took 13.917ms
 开框四次：TTI 160.189（冷）/ 44.510 / 33.636 / 13.522ms
-          page_size 冷开 0px、其后 535px；常驻 actor 3 → 7；idle after redraw 707.6 / 124.0 / 104.1 / 104.2ms
+          page_size 冷开 0px、其后 535px；常驻 actor 3 → 7；idle after redraw 707.618 / 123.951 / 104.111 / 104.199ms
 五种打印形态跨本会话：CRITICAL 0 / JS ERROR 1 / rejection 0 / disposed 0 / GLib 断言 0
           那 1 条是 `ui/dash.js:602 can't access property "ensure_style", firstIcon.icon is null`，
           栈里没有本仓帧（与 2026-10-07 那栏是同一条别的扩展触发的老错误）

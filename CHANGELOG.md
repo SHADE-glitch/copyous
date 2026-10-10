@@ -412,3 +412,10 @@ Change   `run_probe` 走超时分支时**先快照再拆**：`ps -o pid,stat,tim
 Evidence L0 自验跑的是真实嵌套壳：临时探针 `GLib.usleep(60 * 1000000)` 阻塞主循环且不写结果 → `CO_PROBE_POLL=2 run.sh live 99` → `TIMEOUT after 10s` + 快照，快照如实写着 `SLl / wchan=hrtimer_nanosleep`、`eval rc=124`、`majflt 2 → 2`（**没在换页**）、`SwapFree 13168384 kB`；同一次还顺路撞上 D-053 的升级（`ignored SIGTERM, escalating to SIGKILL`）。临时探针已删（`ls probes | grep -c '^99'` = 0），`sh -n` 通过，原文留 `docs/reports/stall-snapshot-selftest.txt`
 Cost     多一个只在红路上跑的函数，绿路零开销。它改变不了钉死本身，只让下一次钉死能归因 —— 那两个钉死之后立刻重跑 `unwindowed 06 07`，两条**都 PASS**（1/1 与 6/6），所以这是间歇现象，不能按需复现
 Commit   3bbc8ae
+
+### D-056 · 2026-10-10 · chore · v9
+Symptom  `docs/maintenance/baseline.md` 的 L2 那栏停在 2026-10-07 的会话（PID 101341），而 11:19:34 起来的 shell（PID 350714）已经在跑含 `0a0368f` 的那批壳侧改动 —— 挂着旧读数的基线页比没有基线页更容易骗人：读者分不清哪一行是当前的
+Change   补一栏 L2，按页面自己的死规矩写（**以日期开头的读数行，同节必须有可复现命令**）：两条时间戳证代码新鲜度、enable 链、四次开框的 `TTI`、按 `_PID=` 过滤的五种打印形态、`GetExtensionErrors`、`idle-cost.sh 30 3`、盘上权限。旧那一栏保留不覆盖，两栏并列说明只能当方向看
+Evidence L2 现场：`loaded 93.293ms / filled 127.596ms / warmup 13.917ms`；`TTI 160.189 / 44.510 / 33.636 / 13.522ms`；`page_size` 冷开 0px、其后 535px，常驻 actor 3→7；`250 matching`（255 行 − 5 pinned）；形态计数 **CRITICAL 0 / JS ERROR 1（`ui/dash.js:602 firstIcon`，栈内无本仓帧）/ rejection 0 / disposed 0 / GLib 断言 0**；`GetExtensionErrors` = 空数组。空转成本三拍 `−0.010 / −0.040 / +0.070` CPU-s，均值 0.007 / 30s 窗 → `NOT MEASURABLE`（与 45-2 那栏同结论）。权限：目录 700、`clipboard.db{,-wal,-shm}` 与 `images/*.png` 全 600、`find … -perm /077` 无输出；遍历 `/proc/*/fd` 后唯一开着真实库的进程是 350714，所以 11:28 那两次写入确实是这次会话写的
+Cost     不改行为、不加判据 —— 会被谁要求回退？只有下一个读者会被旧数字误导，所以记 `chore`。这些毫秒数本身**不是判据**（会话年龄与冷暖会跨 boot 翻转），那句归 `docs/maintenance/reading-the-log.md`
+Commit   fb612a2
