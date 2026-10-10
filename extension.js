@@ -65,6 +65,8 @@ export default class CopyousExtension extends Extension {
 		this.settings = this.getSettings();
 		migrateSettings(this.settings);
 		this.logger = this.getLogger();
+		// Bound once because five `.catch(error)` sites below take it as a handler -- a bare
+		// `error(` grep does not show them, and deleting this line killed enable() loudly.
 		const error = this.logger.error.bind(this.logger);
 
 		// History is stored verbatim, so anything already on disk is corrected before the
@@ -73,7 +75,9 @@ export default class CopyousExtension extends Extension {
 		try {
 			makeStoredPrivate(this);
 		} catch (err) {
-			error(err);
+			// warn, matching the comment above: enable() continues, and `logger.error` would
+			// print a shell CRITICAL that the regression gate then counts for the whole session.
+			this.logger.warn('could not tighten the stored history:', err);
 		}
 
 		// Highlight.js
