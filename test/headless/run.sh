@@ -118,6 +118,15 @@ for config in $CONFIGS; do
 			FAIL=1
 			continue
 		fi
+		# Two files under one prefix used to silently become a two-line $name, which then built a
+		# nonexistent eval path: the session started, the file never appeared, and 450s later the
+		# arm reported a timeout that had nothing to do with the product (2026-10-10, my own
+		# 99-diag-* pair). Fail before up.sh, while the answer is still cheap.
+		if [ "$(printf '%s\n' "$name" | wc -l)" -gt 1 ]; then
+			echo "ambiguous probe prefix: $probe matches $(printf '%s' "$name" | tr '\n' ' ')" >&2
+			FAIL=1
+			continue
+		fi
 		"$HARNESS/up.sh" >/dev/null 2>&1
 		if ! wait_for_shell; then
 			echo "  -> $name FAILED: shell never answered Eval"
