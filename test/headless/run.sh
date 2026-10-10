@@ -91,6 +91,11 @@ snapshot_stall() {
 			echo "eval rc=$? reply: $(printf '%s' "$eval_out" | tr '\n' ' ' | head -c 120)"
 		fi
 		echo "memory: $(grep -E 'SwapTotal|SwapFree|^MemAvailable' /proc/meminfo | tr '\n' ' ')"
+		# Which phase was running: a probe that never finishes writes no result file, so the phase
+		# markers in the log are the only attribution. Tailing 8 lines is not enough -- in the
+		# observed stall the marker sat under 200+ Clutter warnings.
+		echo "probe phases reached:"
+		grep -a '\[copyous-probe\]' "$OUT/$cfg-$name.shell.log" 2>/dev/null | tail -12
 		echo "log tail:"
 		tail -8 "$OUT/$cfg-$name.shell.log" 2>/dev/null
 	} >"$snap" 2>&1

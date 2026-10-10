@@ -80,6 +80,10 @@ globalThis.__co = {
 	// a red here means "go look", not "this is slow".
 	async phase(name, budgetMs, fn) {
 		const GLib = imports.gi.GLib;
+		// Printed before the work starts, not after: when the main thread is blocked inside C, the
+		// result file is never written and the deadline never fires, so this line -- picked up by the
+		// harness's stall snapshot -- is the only thing that says which phase was running.
+		print(`[copyous-probe] phase ${name} start budget=${budgetMs}ms`);
 		const t0 = this.ms();
 		let timerId = 0;
 		let fired = false;
