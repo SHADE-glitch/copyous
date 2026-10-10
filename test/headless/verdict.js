@@ -29,6 +29,11 @@ const checks = r.checks || {};
 const bad = Object.entries(checks).filter(([, v]) => v !== true);
 const status = bad.length === 0 ? 'PASS' : 'FAIL';
 console.log(`     ${name}: ${status}  ${Object.keys(checks).length - bad.length}/${Object.keys(checks).length} checks`);
+// A phase table is the whole point of the budget mechanism: when a `phase:<name>` check is red,
+// the line above it has to say how long that phase took and what it was waiting on.
+if (Array.isArray(r.phases) && r.phases.length) {
+	console.log(`       phases: ${r.phases.map((p) => `${p.phase}=${p.ms}/${p.budgetMs}ms${p.outcome === 'done' ? '' : `(${p.outcome})`}`).join('  ')}`);
+}
 for (const [k, v] of bad) console.log(`       ✗ ${k} = ${JSON.stringify(v)}`);
 if (r.metrics) console.log(`       ${Object.entries(r.metrics).map(([k, v]) => `${k}=${v}`).join('  ')}`);
 process.exit(bad.length === 0 ? 0 : 1);

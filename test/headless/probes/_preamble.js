@@ -70,6 +70,41 @@ globalThis.__co = {
 		});
 	},
 
+	// Run one phase of a probe under a budget, and make *the budget itself* the assertion.
+	// Two legs, because the two ways a phase goes wrong are invisible to each other:
+	//   - a never-settling `await` leaves the main loop idle, so only the deadline can notice it;
+	//   - a synchronous overrun blocks the main thread, so the deadline cannot fire and only the
+	//     measured milliseconds notice it (that same block is why the harness then has to kill -9).
+	// A phase that loses either leg fails with a named check instead of eating the 450s poll.
+	// Budgets are set several times wider than the observed phase times in the passing runs --
+	// a red here means "go look", not "this is slow".
+	async phase(name, budgetMs, fn) {
+		const GLib = imports.gi.GLib;
+		const t0 = this.ms();
+		let timerId = 0;
+		let fired = false;
+		const deadline = new Promise((resolve) => {
+			timerId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, Math.max(1, budgetMs), () => {
+				fired = true;
+				resolve('deadline');
+				return GLib.SOURCE_REMOVE;
+			});
+		});
+		let outcome;
+		try {
+			outcome = await Promise.race([Promise.resolve().then(fn).then(() => 'done'), deadline]);
+		} catch (e) {
+			outcome = `error: ${e}`;
+		}
+		// Only remove a source that has not already run: g_source_remove on an id GLib already
+		// dropped logs GLib-GSource "Source ID ... was not found", and this suite counts CRITICALs.
+		if (!fired && timerId) GLib.source_remove(timerId);
+		const ms = Math.round(this.ms() - t0);
+		(this.out.phases ??= []).push({ phase: name, ms, budgetMs, outcome });
+		this.chk(`phase:${name}`, outcome === 'done' && ms <= budgetMs ? true : { outcome, ms, budgetMs });
+		return outcome === 'done' && ms <= budgetMs;
+	},
+
 	rssMB() {
 		const GLib = imports.gi.GLib;
 		const [ok, bytes] = GLib.file_get_contents('/proc/self/statm');
