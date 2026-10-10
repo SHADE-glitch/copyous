@@ -130,6 +130,16 @@ COPYOUS_PREFS_ROOT=/tmp/lab/copyous@local ./test/prefs/run.sh        # 跑仓库
 结果落在 `$COPYOUS_WORK/out`（默认 `/tmp/copyous-harness/out`），不进仓库，所以没有需要
 gitignore 的产物；崩溃了产物也还在 `/tmp` 里可查。
 
+一个探针超时**不只是少一条结果**。超时的会话是被 SIGTERM 之外的手段收走的，而它一直攥着 mutter 的
+wayland 锁（`/run/user/1000/wayland-copyous-harness.lock`）——后面每个会话都在
+`Failed to create_socket` 上开局即死，报回来的却是 `shell never answered Eval`。2026-10-10 那轮
+39 会话里，horizontal 臂一个 `06-ux-hidden` 超时换来 **7 条假红**，日志上看不出它们彼此有关。
+现在两处一起改掉这个放大：`down.sh` 发完 TERM 先复查，仍有存活就升级 KILL 再复查一次（删 bus
+socket 放在确认之后——先删会把那个壳自己的 socket 一起删掉，反而查不到它）；`run.sh` 不再把
+`down.sh` 的输出一并吞掉，拆除失败就**当场停止整轮**，继续跑只会量产与产品无关的红。升级这条有
+正负对照：拿一个 `trap '' TERM` 的假壳跑旧脚本 → `WARN … survived SIGTERM` 且进程照旧活着
+（exit 1）；跑新脚本 → `escalating to SIGKILL` + `no … processes left`（exit 0）。
+
 探针清单：
 
 | 探针 | 判什么 |

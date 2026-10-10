@@ -51,6 +51,14 @@ that must not be broken, not the measurements.
   `test/headless/run.sh` now counts `assertion .* failed|g_return_[A-Za-z_]+_fail|GLib-[A-Za-z]+-CRITICAL`
   with the same three-way attribution as the disposed count, and only the near-our-frames tier
   fails the run. The shapes and the attribution result are `docs/maintenance/reading-the-log.md`'s.
+- **One instrument fault must not be allowed to become eight product failures.** A timed-out probe
+  leaves its nested shell blocked inside a C call: it never reaches a signal handler, so SIGTERM is
+  ignored and the shell keeps holding mutter's Wayland lock -- every later session in the run then
+  dies at `Failed to create_socket` and prints `shell never answered Eval`. Teardown must escalate
+  to SIGKILL and re-check, and a teardown that still fails **stops the run**, because continuing
+  only manufactures red that has nothing to do with the code. Same class: a probe prefix matching
+  two files builds a nonexistent eval path, so `run.sh` rejects it before `up.sh`, not after
+  450 seconds of waiting. Numbers and the paired controls: `docs/maintenance/verification.md`.
 - **No shell-side file may statically `import` a typelib the shell does not guarantee.** The
   guaranteed set is what the shell's own modules import (`gresource list + extract` over
   `libshell-NN.so`), not a guess: Gda, GSound and Gst are outside it. A static import of an

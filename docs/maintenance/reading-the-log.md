@@ -53,10 +53,11 @@ $LOG /usr/bin/gnome-shell | grep -acE 'CRITICAL|JS ERROR'  # 必须是 0
 跑完比一遍，不同就 `USER DATA TOUCHED` 并整轮判失败（`~/.local/share` 故意不比：真实会话一边
 剪贴板一边写它，永远不同 = 永远假红）。
 
-**第四种：访问已 dispose 的对象是 warning**，上面两个词都不匹配。单独数，而且必须按 `_PID=`
-过滤 —— logout 时上一个 shell 的拆除会刷一批，那些不归本仓库：
+**第四种：访问已 dispose 的对象是 warning。** 得单独数，而且必须按 pid 过滤：
 
 ```sh
+# ⚠ 上面那条数**不够**：GJS 把访问已 dispose 对象打成 warning，两个关键词都不匹配。
+# 单独数它，而且必须按 pid —— logout 时上一个 shell 的拆除会刷一批，那些不归本仓库：
 journalctl --no-pager -o cat --since="<本次登录时间>" _PID=<pid> | grep -ac 'has been already disposed'
 # 归因看两处：栈帧里有没有 extensions/copyous@local/，消息头有没有点名 Gjs_common_gjs_<Class>
 grep -E '^(Rss|Swap)' /proc/<pid>/smaps_rollup             # 常驻 / 被换出

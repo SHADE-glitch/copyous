@@ -391,3 +391,17 @@ Change   `make-fixture.js` 写一个 8kHz/16bit 单声道、时长 3 秒的真 W
 Evidence L1 `live 13` **10/10**；牙验过：期望故意 +1 秒 → **FAIL 9/10** 并打印真实标签 `["48","48","KB","KB","3s","3s"]`，之后按字节还原（`diff` 0 行）。写的时候踩了两处 GJS API 手误，都记在探针注释里：`GBytes.get_data()` 返回字节数组本身而不是 `[bytes, size]` 元组；St 的类名要 `get_style_class_name()`，没有 `get_style_classes()`
 Cost     仍然覆盖不到的是**缺席分支**（没装 `gir1.2-gstreamer-1.0` 的机器）：本机 typelib 在位，造不出来，那条只有 `test/shell-internals.test.js` 的担保集合判据 + `gjs -m` 的机制验证据
 Commit   03a74a0
+
+### D-053 · 2026-10-10 · guard · v9
+Symptom  39 会话全跑里 horizontal 臂 `06-ux-hidden` 超时之后，同一轮剩下 7 个探针全报 `shell never answered Eval` —— 而那 7 条**不是产品**。超时的壳（pid 215842）还活着：主线程 `state=S`、`wchan=futex_do_wait`、6 秒内 `utime+stime` 一字不动（所以不是在死循环），它攥着 mutter 的 wayland 锁，后面每个会话开局就打 `WL: unable to lock lockfile … maybe another compositor is running` + `libmutter-ERROR: Failed to create_socket`。`down.sh` 只发 SIGTERM，而阻塞在 C 调用里的进程根本跑不到信号处理器；它虽然为此 exit 1 并打 WARN，`run.sh` 又用 `>/dev/null 2>&1` 把这句吞了 —— 一次超时被放大成八个故障，且日志上看不出彼此有关
+Change   `down.sh`：TERM 后复查，仍有存活就 `escalating to SIGKILL` 再复查一次；删 bus socket 挪到复查之后（先删会把那个壳自己的 socket 一起删掉，反而查不到它）。`run.sh`：接住 `down.sh` 的输出与状态码，升级这件事只留一行 note，**拆除失败就 `break 2` 停止整轮**，因为继续跑只会量产与产品无关的红
+Evidence L0 正反对照各一次（`trap '' TERM` 的假壳，argv 带 harness 名）：`git show HEAD:test/headless/down.sh` → `WARN: 1 harness process(es) survived SIGTERM` + exit 1 + 进程照旧活着；改后 → `escalating to SIGKILL` + `harness down: no … processes left` + exit 0。改完第一次真跑就撞上同一条路径（horizontal/06 再次 450s 超时），日志里 `note: WARN … escalating to SIGKILL` 之后紧跟 `harness down`，那一轮其余会话不再被牵连。两个脚本 `sh -n` 通过
+Cost     停整轮的代价是一次重跑（20–35 分钟）。06 为什么超时仍未定论（媒体路径已用标记探针排除，见 `docs/maintenance/open-items.md`），本条只保证它不再传染别人
+Commit   43b14bc
+
+### D-054 · 2026-10-10 · guard · v9
+Symptom  `run.sh` 用 `ls probes/ | grep "^<前缀>-"` 解析探针名。同一个前缀命中两个文件时 `$name` 变成**两行**，拼出来的 eval 路径不存在：会话照样起来、结果文件永远不出现、450 秒后报一条与产品毫无关系的 TIMEOUT。踩点是我自己 —— 同一时刻放了 `99-diag-06.js` 和 `99-diag-media.js` 两个诊断文件，那一轮量的就是这个拼错的路径，白等 450 秒
+Change   名字解析完先数行数，`>1` 就打 `ambiguous probe prefix: 99 matches …` 并 FAIL。**位置在 `up.sh` 之前**，所以拒绝是便宜的：不起会话、不等超时
+Evidence L0：临时再放一个 `99-diag-zz.js` → `run.sh live 99` 立刻 exit 1 并打印该行，`pgrep -cf` 数到的 harness 进程为 **0**（确实一个会话都没起）；删掉临时文件后 `probes/` 里以 `99` 开头的只剩 1 个。`sh -n` 通过。两个诊断文件用完即删，仓里不留 `99-*`
+Cost     三行 shell。它挡住的是"用一整轮会话去量一个文件名"，没有别的副作用
+Commit   1b6395a
