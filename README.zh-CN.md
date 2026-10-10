@@ -277,7 +277,7 @@ npm test
 视口窗口化、成本、调用点接线、落盘内容权限，以及一份能解析但缺字段的 actions 配置会不会连带打死条目菜单的断言。
 
 ```
-./test/headless/run.sh all        # 3 配置 x 12 探针 = 36 会话（每个约 30 秒）
+./test/headless/run.sh all        # 3 配置 x 13 探针 = 39 会话（每个约 30 秒）
 ```
 
 它不碰真实 `clipboard.db`，不写真实 dconf，也不会改动维护者真实 `~/.cache` / `~/.config` 里任何东西的权限

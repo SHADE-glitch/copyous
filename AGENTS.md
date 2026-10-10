@@ -30,7 +30,27 @@ that must not be broken, not the measurements.
   `config.actions.map(...)`, so a file that parses and lacks the field kills the feature while
   printing only `Unhandled promise rejection` -- a form neither `CRITICAL` nor `JS ERROR` matches.
   Recoverable conditions are logged with `logger.warn`; `logger.error` renders as a shell
-  CRITICAL and turns the health gate permanently red.
+  CRITICAL and turns the health gate permanently red. Measured 2026-10-10, whole class swept:
+  nine sites were downgraded (absent Gda typelib, media-duration probe, file info and file
+  preview build, two image-notification decodes, two link-metadata fetches, stylesheet load,
+  a lost chmod). The remaining `logger.error` calls all meet one bar: **the user's database or
+  data is actually damaged.** Beware the grep that finds them: `\berror\(` does not match
+  `.catch(error)`, and deleting that binding killed `enable()` -- the L1 harness printed
+  `deferred enable failed: ReferenceError: error is not defined` while L0 could not see it at all.
+- **Nothing the user copied may reach the journal.** The clipboard is stored verbatim, so a log
+  line that prints an `entry`, or an action's stderr, writes their text into
+  `/var/log/journal` for whoever reads logs from now on -- actions get the entry content on
+  stdin, so their output can carry a password back. Log the *type and id*, never the content.
+  Found at two sites on 2026-10-10 (`clipboardDialog`: `Unknown item type` + the whole entry;
+  `actionMenu`: the action's stderr).
+- **A gate has to count the class, not the three words we happened to know.** GLib's own C-side
+  failures reach the journal with **no "CRITICAL" anywhere in the message body** (level and
+  domain are journald fields: `PRIORITY=4`, `GLIB_DOMAIN=GLib-GObject`), so a word-based gate
+  reads a clean zero over them. Measured 2026-10-10: 27 `g_object_unref: assertion
+  'G_IS_OBJECT (object)' failed` lines across boots while every gate in this repo printed 0.
+  `test/headless/run.sh` now counts `assertion .* failed|g_return_[A-Za-z_]+_fail|GLib-[A-Za-z]+-CRITICAL`
+  with the same three-way attribution as the disposed count, and only the near-our-frames tier
+  fails the run. The shapes and the attribution result are `docs/maintenance/reading-the-log.md`'s.
 - **No shell-side file may statically `import` a typelib the shell does not guarantee.** The
   guaranteed set is what the shell's own modules import (`gresource list + extract` over
   `libshell-NN.so`), not a guess: Gda, GSound and Gst are outside it. A static import of an
@@ -100,7 +120,7 @@ that must not be broken, not the measurements.
   The fifth loadable module, `thirdparty/qrcodegen.js`, is vendored upstream code and is deliberately not tested. Everything else in `lib/` imports `gi://` and cannot be tested under Node — for that surface there is `test/headless/`, which boots an isolated `gnome-shell --headless` (private dbus, `GSETTINGS_BACKEND=memory`, scratch `XDG_DATA_HOME`/`XDG_CACHE_HOME`/`XDG_CONFIG_HOME`, a synthetic DB fixture) and drives it with probes:
 
   ```sh
-  ./test/headless/run.sh all        # 3 configs x 12 probes = 36 sessions (~30s each)
+  ./test/headless/run.sh all        # 3 configs x 13 probes = 39 sessions (~30s each)
   ./test/headless/run.sh live 01    # one probe, the maintainer's real config
   ```
 

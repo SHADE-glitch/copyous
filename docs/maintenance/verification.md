@@ -111,7 +111,7 @@ COPYOUS_PREFS_ROOT=/tmp/lab/copyous@local ./test/prefs/run.sh        # 跑仓库
 ### L1 headless 三臂
 
 ```sh
-./test/headless/run.sh all                  # 三配置 × 十二探针 = 36 个独立 shell 会话
+./test/headless/run.sh all                  # 三配置 × 十三探针 = 39 个独立 shell 会话
 ./test/headless/run.sh live                 # 只跑当前真实配置那一臂
 ./test/headless/run.sh unwindowed 01 03     # 只跑两个探针
 ```
@@ -146,6 +146,7 @@ gitignore 的产物；崩溃了产物也还在 `/tmp` 里可查。
 | `10-notification-loopgap` | 复制图片时主线程被钉住多久：`send-notification` 由探针自己打开（默认 false，没有任何一臂覆盖这条分支），fixture 里那张 1728x1056 图由 `make-fixture.js` 写真文件。**比例只报数不设闸**（实测 1.3–1.57 波动 vs 旧代码 2.1），可判的闸门是确定性那条：路径含转义的 URI 必须还能解出预览与尺寸 —— 旧代码把 `file://` 剥掉后当成路径交给 GdkPixbuf，含空格的图片路径直接解码失败 |
 | `11-grab-failure` | 抢模态被拒之后对话框的状态有没有收拾干净：`_updateCursor` 必须回到 true（否则 `show-at-pointer` 整会话失效）、modal 栈归零、被拒之后还能正常再开一次。**注入点只能是 `global.stage.grab`** —— `Main.pushModal` 是 `ui/main.js` 的具名导出，模块命名空间只读、改不了；而「先占住 SYSTEM_MODAL 再开」这条真实路线实测**不会被拒**（后到的请求拿走 grab，先前那个反而 `is_revoked()=true`），所以两种做法都跑一遍，真实那条只 `rec` 不 `chk` |
 | `12-actions-config` | 一份能解析、但没有 `actions` 的 `actions.json` 会不会把条目菜单、动作快捷键和整个 Actions 页一起打死。四条腿：**先写自己的哨兵**（一个只有一行合法动作的文件）等菜单报出那个 id → 换 `{}` 等菜单**离开哨兵** → 再换回哨兵（证明守卫不是「一律返回默认值」）→ 还原原文件并等菜单同意。去掉守卫的副本 **FAIL 6/8**（`not-an-array:undefined` + 2 条 unhandled rejection + 1 条归属 copyous 的 disposed），修好的 **PASS 8/8** |
+| `13-media-duration` | `gi://Gst` 唯一的服务对象：音频 File 条目上那个时长徽标。`make-fixture.js` 写一个 8kHz/16bit 的真 WAV（**名字带空格**，所以存进去的是 percent-encoded URI），期望时长**从文件自己的 RIFF 头算**（`dataSize / (rate * blockAlign)`），不是抄代码里的常量 —— 改长度不用改探针。窗口化下条目得先进视口，所以先按类型过滤成 5 条 File 行。十条腿含一条**负腿**：另一条非音频的 File 行不许长出时长控件（否则"切多了 case"也会绿灯）。2026-10-10 现场：`live 13` = **10/10**；把期望故意改成 +1 秒 → **FAIL 9/10** 并打印真实标签 `["48","48","KB","KB","3s","3s"]`，牙验过 |
 
 ### L2 真实会话（只读）
 

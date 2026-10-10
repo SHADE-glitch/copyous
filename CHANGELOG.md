@@ -262,7 +262,7 @@ Commit   85f29fe
 ### D-034 · 2026-10-10 · fix · v9
 Symptom  图片通知预览把存下来的内容做 `body.substring('file://'.length)`，而存的是 `Gio.File.get_uri()` 的结果（`clipboard.js:411`），也就是 percent-encoded 文本 —— 于是尾巴被当作路径交给 GdkPixbuf，只有完全不含转义的路径能用。同文件里正确的形状本来就在旁边：`tryDecodeUri(...).substring('file://'.length)`（第 65、247 行）
 Change   改 `Gio.File.new_for_uri(body)`，与 `clipboard.js:190` 同一形状
-Evidence L0 代码读证（转义分支**没有专门的投毒**，fixture 里的图片路径都不含转义）；L1 `probes/10-notification-loopgap` 覆盖的是同一个函数，本轮 live 一臂 12 探针 151 项全绿
+Evidence L1 `probes/10-notification-loopgap` 的 `escapedImagePathStillDecodes`：在隔离 app-data 里写一张 `probe 10 escaped.png`，把它的 `get_uri()`（含 `%20`）喂给 `notification()`，断言通知到达且正文是 `N×N px`；同探针另有 `bodyReportsPixelSize` / `previewIsAnImage` / `textBranchStillWorks`。本轮 419 项三臂全绿。诚实标注：**这条腿本轮没见过红** —— 按"先补覆盖再修"的顺序它是在修复之前写的，但本轮想复现投毒（在 /tmp 副本里把 `notifications.js` 退回 68b0e1e^）被权限层拦下，所以"见过红"只有前一轮的记录为凭
 Cost     通知里的图片从此按 URI 语义处理，不许再退回字符串切片
 Commit   68b0e1e
 
@@ -363,3 +363,31 @@ Change   按安装集分开：打印成 `statically imported (shell-side)` 与 `
 Evidence L0 投毒：往 `lib/` 放一个 `import Gtk from 'gi://Gtk?version=4.0'` 的文件 → `not ok 3 - no Gtk or Gdk on the shell side, and the prefs-only set is named`；删掉后 114/114 绿、`RESULT: PASS`
 Cost     顺带定下一条从没写下来的事实：`Adw` 也只属于 prefs 进程，shell 侧现场是 Clutter, Cogl, GLib, GObject, GdkPixbuf, Gio, Graphene, Meta, Pango, Shell, Soup, St（12 个）。prefs-only 集合一旦变化，说明两个进程的分界挪了，那条断言会先红
 Commit   9a70edd
+
+### D-049 · 2026-10-10 · fix · v9
+Symptom  `logger.error` 渲染成 shell CRITICAL，而 CRITICAL 是回归闸门数的那一行 —— 于是**可恢复的环境状况**会把这台机器的健康闸门永久染红。这个规矩先前只在 `open()` 抢模态一处落过地（D-033），整类没扫过：Gda typelib 缺席、媒体时长探测失败、文件信息与文件预览建不出来、图片通知解码两处、链接元数据与缩略图两处、stylesheet 载入失败、`makeStoredPrivate()` 丢一次 chmod（那处注释本来写着 "never fatal"，代码却用 error）
+Change   整类扫描（`rg 'logger\.error' extension.js lib`，去掉 prefs）后 **9 处降为 `logger.warn`**；留下的 error 只满足一条标准：**用户的库或数据真的受损**（修剪失败、条目类型认不出、建条目抛异常、Gda/JSON 后端起不来、删图与写库失败）
+Evidence L1 改动后重跑 headless 臂；本轮真实会话读数（0 CRITICAL / 0 rejection / 0 disposed）是**上一批代码**的，这一批要注销才生效。扫描自身的一次翻车被 L1 当场抓住：`rg '\berror\('` 看不见 `.catch(error)`，删掉那行绑定后 enable() 报 `ReferenceError: error is not defined`，而 L0 看不见（`extension.js` 在 Node 里加载不了）
+Cost     降级是把一类信号从 CRITICAL 移到 warning：**判据必须同时数 warn 家族**，否则真坏了反而看不见 —— 媒体时长那条就是靠 D-052 的探针补住的，不是靠日志级别
+Commit   0a0368f
+
+### D-050 · 2026-10-10 · fix · v9
+Symptom  两处把用户内容写进 journal：`clipboardDialog.js` 的 `Unknown item type` 打印**整个 entry 对象**（剪贴板正文逐字进 `/var/log/journal`）；`actionMenu.js` 打印**动作的 stderr**，而动作的 stdin 就是条目正文，那条命令的输出可以原样带回密码本。本仓的历史本来就是明文存储，journal 不是私有存储
+Change   两处都改成只留**类型与 id**（动作留 id），不再带内容
+Evidence L0 代码读证；`grep` 复查这两行已无 `entry` / `stderr`。无仪器覆盖"日志里没有正文"这件事 —— 它需要一条新的判据，已记在 open-items
+Cost     排查动作失败时不再能直接看到 stderr，要看动作 id 再去复现；这是有意的取舍
+Commit   0a0368f
+
+### D-051 · 2026-10-10 · guard · v9
+Symptom  `run.sh` 的日志闸门数三种形态（`CRITICAL|JS ERROR`、`Unhandled promise rejection`、`has been already disposed`），**看不见 GLib 自己写的 C 侧失败**：那种行的消息体里没有 "CRITICAL"，级别与域名在 journald 的结构字段里（`PRIORITY=4`、`GLIB_DOMAIN=GLib-GObject`）。现场：这台机器跨 boot 有 **27 条** `g_object_unref: assertion 'G_IS_OBJECT (object)' failed`，每道闸门一直报 0；把模式放宽后跨 boot 命中从 19 涨到 **1720**（最大一族是 `clutter_text_{set_text,get_text,get_editable}: CLUTTER_IS_TEXT (self)` 各 190）
+Change   新增第四段计数：`assertion .* failed|g_return_[A-Za-z_]+_fail|GLib-[A-Za-z]+-CRITICAL`，三档归因与 disposed 同构（总数 / 6 行内出现本仓栈帧或 `Gjs_common_gjs_` / 无法归因），**只有中间那档判红** —— C 侧断言不带 JS 栈，全算成自己的就天天假红
+Evidence L0 合成日志验归因：纯外来 → `1 0`、紧跟本仓栈帧 → `1 1`、混合 → `2 1`；本轮 39 会话里总数 0（本仓确实没产生）。归因结论也落档：这批**不是本仓的**，两条独立证据是 `\.unref\(|g_object_unref` 在本仓 shell 侧命中 0（GJS 对 null 调 unref 抛 TypeError，打不出 GLib 断言），以及 disposed 附近栈帧分组为 shell ui 1664 / Vitals 1590 / notification-grouper 159 / caffeine 105 / blur-my-shell 8 / macos-dock 1 / **copyous 0**
+Cost     两个查询坑一起记进 `docs/maintenance/reading-the-log.md`：大小写（消息体是小写 `assertion`，`grep 'Assertion'` 数到 0）、以及 `grep -c` 计数为 0 时自己 exit 1 会断掉 `&&` 链 —— 别把"链断了"读成"这条查过了"
+Commit   03a74a0
+
+### D-052 · 2026-10-10 · guard · v9
+Symptom  `gi://Gst` 只服务 `tryCreateMediaFileInfo()` 的媒体时长，而那条分支**没有任何仪器覆盖**：fixture 的 255 行里没有一行真的音视频（真实库里也是 0 行），所以 D-038 的证据只有"扩展还能加载"，时长出没出、出得对不对，谁都没看过
+Change   `make-fixture.js` 写一个 8kHz/16bit 单声道、时长 3 秒的真 WAV，**文件名带空格**（存进去就是 percent-encoded URI，与从文件管理器复制一致）；新增 `probes/13-media-duration`：期望时长**从该文件自己的 RIFF 头推导**（`dataSize / (rate * blockAlign)`，不抄代码里的常量），按类型过滤成 5 条 File 行让窗口化把它送进视口，再断言渲染出的时长标签；含一条**负腿**——非音频的 File 行不许长出时长控件
+Evidence L1 `live 13` **10/10**；牙验过：期望故意 +1 秒 → **FAIL 9/10** 并打印真实标签 `["48","48","KB","KB","3s","3s"]`，之后按字节还原（`diff` 0 行）。写的时候踩了两处 GJS API 手误，都记在探针注释里：`GBytes.get_data()` 返回字节数组本身而不是 `[bytes, size]` 元组；St 的类名要 `get_style_class_name()`，没有 `get_style_classes()`
+Cost     仍然覆盖不到的是**缺席分支**（没装 `gir1.2-gstreamer-1.0` 的机器）：本机 typelib 在位，造不出来，那条只有 `test/shell-internals.test.js` 的担保集合判据 + `gjs -m` 的机制验证据
+Commit   03a74a0

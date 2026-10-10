@@ -281,7 +281,7 @@ npm test
 Everything else in `lib/` imports `gi://` and cannot run under Node — but it is not limited to manual checking either. `test/headless/` boots an isolated `gnome-shell --headless` (private dbus, `GSETTINGS_BACKEND=memory`, its own `XDG_DATA_HOME`, `XDG_CACHE_HOME` and `XDG_CONFIG_HOME`, a synthetic DB fixture) and drives it with probes covering search semantics, lifecycle, viewport windowing, cost, call-site wiring, the file permissions of what gets stored and what a `disable()` leaves behind:
 
 ```
-./test/headless/run.sh all        # 3 configs x 12 probes = 36 sessions (~30s each)
+./test/headless/run.sh all        # 3 configs x 13 probes = 39 sessions (~30s each)
 ```
 
 It never opens the real `clipboard.db`, never writes the real dconf, and never changes the modes of anything under the maintainer's real `~/.cache` or `~/.config` -- `up.sh` asserts that separation and `run.sh` fails the whole batch if the real `~/.config/copyous@local` changed anyway. How to read its output, and which numbers are valid regression criteria, is in [MAINTENANCE.md](MAINTENANCE.md).
