@@ -118,6 +118,14 @@ export XDG_CACHE_HOME="$WORK/xdg-cache"
 export XDG_CONFIG_HOME="$WORK/xdg-config"
 export GSETTINGS_SCHEMA_DIR="$EXT/schemas"
 export DEBUG_COPYOUS_DBPATH="$SESSION_DB"
+# A private runtime dir. Without it the nested shell resolves the Wayland socket
+# and writes the "safe mode" marker into the *live* /run/user/$UID -- which is what
+# left `gnome-shell-disable-extensions` in the real runtime dir, cleared only by a
+# logout. Mode 0700, as the runtime-dir spec requires.
+rm -rf "$WORK/runtime"
+mkdir -p "$WORK/runtime"
+chmod 700 "$WORK/runtime"
+export XDG_RUNTIME_DIR="$WORK/runtime"
 export WAYLAND_DISPLAY=$WAYLAND
 export DBUS_SESSION_BUS_ADDRESS=unix:path=$SOCK
 
