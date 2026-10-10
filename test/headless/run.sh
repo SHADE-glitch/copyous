@@ -21,7 +21,7 @@ set -u
 HARNESS=$(cd "$(dirname "$0")" && pwd)
 WORK=${COPYOUS_WORK:-/tmp/copyous-harness}
 OUT=$WORK/out
-ALL_PROBES="01 02 03 04 05 06 07 08 09 10 11 12"
+ALL_PROBES="01 02 03 04 05 06 07 08 09 10 11 12 13"
 ALL_CONFIGS="live unwindowed horizontal"
 
 CFG=${1:-}
@@ -33,7 +33,7 @@ usage: $0 <config|all> [probe ...]
                          04 windowed-structure 05 windowed-cost 06 ux-hidden
                          07 wiring 08 permissions 09 cache-residue
                          10 notification-loopgap 11 grab-failure
-                         12 actions-config)
+                         12 actions-config 13 media-duration)
 EOF
 	exit 2
 fi
@@ -191,6 +191,38 @@ if [ "$disposed_ours" -gt 0 ]; then
 	FAIL=1
 	echo "  ^ a destroy chain is open; this is the class CRITICAL/JS ERROR cannot see"
 	cat "$OUT"/*.shell.log | grep -a -A12 "has been already disposed" | grep -aE "has been already disposed|copyous@local" | head -12
+fi
+
+# The fourth print form is C-side, and the three patterns above cannot see it: GLib writes its own
+# failures without the word CRITICAL anywhere in the body. On this machine's live session the line
+# is literally `g_object_unref: assertion 'G_IS_OBJECT (object)' failed` -- 27 of them across the
+# last eight boots while every gate above printed 0. That shape IS a double unref or a ref on a
+# non-object, the same family as the disposed warnings, so being blind to it is being blind to the
+# exact bug class this harness was built for.
+#
+# Attribution is deliberately weaker than the disposed rule: a C assertion carries no JS stack, so
+# only a frame naming our path within a few lines can tie one to us. Those are judged; the rest
+# are reported with their counts, because "the grep found no CRITICAL" is not evidence of anything.
+apair=$(cat "$OUT"/*.shell.log 2>/dev/null | awk '
+	/extensions\/copyous@local\/|Gjs_common_gjs_/ { ours_line = NR }
+	/assertion .* failed|g_return_[A-Za-z_]+_fail|GLib-[A-Za-z]+-CRITICAL/ {
+		total++
+		if (ours_line && NR - ours_line <= 6) ours++
+		next
+	}
+	END { printf "%d %d\n", total, ours }
+')
+assert_total=${apair%% *}
+assert_ours=${apair##* }
+[ -z "$assert_total" ] && assert_total=0
+[ -z "$assert_ours" ] && assert_ours=0
+echo "GLib assertion/critical lines: $assert_total total, $assert_ours within 6 lines of a copyous frame, $((assert_total - assert_ours)) unattributed (reported only)"
+if [ "$assert_ours" -gt 0 ]; then
+	FAIL=1
+	echo "  ^ a C-side lifetime failure next to our code; neither CRITICAL nor disposed counting sees this class"
+	cat "$OUT"/*.shell.log | grep -a -B2 -A2 -E "assertion .* failed|g_return_[A-Za-z_]+_fail|GLib-[A-Za-z]+-CRITICAL" | head -14
+elif [ "$assert_total" -gt 0 ]; then
+	cat "$OUT"/*.shell.log | grep -aE "assertion .* failed|g_return_[A-Za-z_]+_fail|GLib-[A-Za-z]+-CRITICAL" | sort | uniq -c | head -6
 fi
 
 echo "=== timing lines from the last session ==="

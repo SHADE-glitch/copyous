@@ -111,6 +111,39 @@ function png(width, height, pixel) {
 
 const png8x8 = (rgb) => png(8, 8, () => rgb);
 
+/**
+ * A PCM WAV of exactly `seconds` at 8 kHz mono 16-bit.
+ *
+ * MediaInfo only appears for rows whose file resolves to `audio/*`, and the fixture had no
+ * such row, so the whole GStreamer duration branch -- the one `gi://Gst` was made dynamic for
+ * -- ran in no arm and no probe. The length comes from the RIFF size field, so the expected
+ * duration is exact and computable from the bytes: that is what turns probe 13 into a gate
+ * rather than a look. 8 kHz keeps the file at seconds * 16 kB.
+ */
+function wav(seconds, rate = 8000) {
+	const samples = Math.round(seconds * rate);
+	const data = Buffer.alloc(samples * 2);
+	for (let i = 0; i < samples; i++)
+		data.writeInt16LE(Math.round(6000 * Math.sin((2 * Math.PI * 440 * i) / rate)), i * 2);
+	const hdr = Buffer.alloc(44);
+	hdr.write('RIFF', 0);
+	hdr.writeUInt32LE(36 + data.length, 4);
+	hdr.write('WAVE', 8);
+	hdr.write('fmt ', 12);
+	hdr.writeUInt32LE(16, 16);
+	hdr.writeUInt16LE(1, 20); // PCM
+	hdr.writeUInt16LE(1, 22); // mono
+	hdr.writeUInt32LE(rate, 24);
+	hdr.writeUInt32LE(rate * 2, 28);
+	hdr.writeUInt16LE(2, 32);
+	hdr.writeUInt16LE(16, 34);
+	hdr.write('data', 36);
+	hdr.writeUInt32LE(data.length, 40);
+	return Buffer.concat([hdr, data]);
+}
+
+const AUDIO_SECONDS = 3;
+
 // Gradient, not noise: the pixel count is what costs to decode, and a gradient keeps the
 // fixture archive small enough to regenerate on every `COPYOUS_REFRESH_FIXTURE=1`.
 const SCREENSHOT = [1728, 1056];
@@ -201,8 +234,10 @@ const PINNED = 5;
 // Populated while building Image rows, drained by main().
 const pngFiles = new Map();
 let imageRow = 0;
+// The single audio row's file, built while the File rows are.
+const wavFiles = new Map();
 
-function buildRows(imagesDir) {
+function buildRows(imagesDir, mediaDir) {
 	const rows = [];
 	let serial = 0;
 	for (const [type, n] of PLAN) {
@@ -223,10 +258,18 @@ function buildRows(imagesDir) {
 						metadata = JSON.stringify({ language: { id, name } });
 					}
 					break;
-				case 'File':
-					content = fileContent(i);
+				case 'File': {
+					// One File row points at a real, decodable clip. The name carries a space on
+					// purpose: `fileUri` percent-encodes it, so the stored content has the shape a
+					// copy from Files really has, and probe 13 can gate the duration branch.
+					if (i === 0) {
+						const path = `${mediaDir}/fixture theme song.wav`;
+						wavFiles.set(path, wav(AUDIO_SECONDS));
+						content = fileUri(path);
+					} else content = fileContent(i);
 					metadata = JSON.stringify({ operation: i % 2 ? 'cut' : 'copy' });
 					break;
+				}
 				case 'Files':
 					content = filesContent(i);
 					metadata = JSON.stringify({ operation: 'copy' });
@@ -264,11 +307,14 @@ function main() {
 	const outIdx = process.argv.indexOf('--out');
 	const outDir = resolve(outIdx === -1 ? '/tmp/copyous-fixture' : process.argv[outIdx + 1]);
 	const imagesDir = `${outDir}/images`;
+	const mediaDir = `${outDir}/media`;
 	mkdirSync(imagesDir, { recursive: true });
+	mkdirSync(mediaDir, { recursive: true });
 
 	const dbPath = `${outDir}/fixture.db`;
-	const rows = buildRows(imagesDir);
+	const rows = buildRows(imagesDir, mediaDir);
 	for (const [path, bytes] of pngFiles) writeFileSync(path, bytes);
+	for (const [path, bytes] of wavFiles) writeFileSync(path, bytes);
 
 	const db = new DatabaseSync(dbPath);
 	db.exec(`
