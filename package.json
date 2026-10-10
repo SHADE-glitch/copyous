@@ -7,6 +7,7 @@
   "description": "Local maintenance fork of copyous.",
   "scripts": {
     "test": "node --test test/*.test.js",
+    "test:coverage": "node --experimental-test-coverage --test-coverage-exclude='**/test/**' --test test/*.test.js",
     "check:log": "node scripts/check-log.mjs"
   }
 }
