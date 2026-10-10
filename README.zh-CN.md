@@ -1,6 +1,6 @@
 <p align="right"><a href="README.md">English</a> | <a href="README.zh-CN.md"><b>简体中文</b></a></p>
 
-# Copyous —— 本地维护分支
+# 📋 Copyous —— 本地维护分支
 
 一款面向 GNOME 的现代剪贴板管理器。
 

@@ -1,6 +1,6 @@
 <p align="right"><a href="README.md"><b>English</b></a> | <a href="README.zh-CN.md">简体中文</a></p>
 
-# Copyous — Local Maintenance Fork
+# 📋 Copyous — Local Maintenance Fork
 
 A modern clipboard manager for GNOME.
 
