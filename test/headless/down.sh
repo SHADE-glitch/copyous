@@ -24,11 +24,23 @@ done
 for pid in $(pgrep -f "$WAYLAND" 2>/dev/null); do kill "$pid" 2>/dev/null; done
 for pid in $(pgrep -f "unix:path=$SOCK" 2>/dev/null); do kill "$pid" 2>/dev/null; done
 sleep 1
+
+# SIGTERM is not enough: a shell stuck inside a C call does not run the signal handler, and an
+# orphaned one keeps the mutter wayland lock -- every session after it then dies with
+# "Failed to create_socket" and reports "shell never answered Eval". One 2026-10-10 run lost
+# seven probes that way to a single timeout. Escalate, and prove it worked before deleting the
+# bus socket: rm -f $SOCK first would take the lock-holder's own socket away and hide it.
+left=$(pgrep -f "$WAYLAND" 2>/dev/null | wc -l)
+if [ "$left" -gt 0 ]; then
+	echo "WARN: $left harness process(es) ignored SIGTERM, escalating to SIGKILL" >&2
+	for pid in $(pgrep -f "$WAYLAND" 2>/dev/null); do kill -KILL "$pid" 2>/dev/null; done
+	sleep 1
+fi
 rm -f "$SOCK"
 
 left=$(pgrep -f "$WAYLAND" 2>/dev/null | wc -l)
 if [ "$left" -gt 0 ]; then
-	echo "WARN: $left harness process(es) survived SIGTERM; check: pgrep -af $WAYLAND" >&2
+	echo "FATAL: $left harness process(es) survived SIGKILL; check: pgrep -af $WAYLAND" >&2
 	exit 1
 fi
 echo "harness down: no $WAYLAND processes left"

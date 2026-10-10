@@ -126,7 +126,19 @@ for config in $CONFIGS; do
 			continue
 		fi
 		run_probe "$probe" "$name" "$json" "$config" || FAIL=1
-		"$HARNESS/down.sh" >/dev/null 2>&1
+		# Teardown output must be silent on success and LOUD on failure. Swallowing it is how one
+		# timed-out probe became seven "shell never answered Eval" on 2026-10-10: the surviving
+		# shell kept mutter's wayland lock, and that is the one thing a new session cannot wait
+		# out -- so the failures after it measured the lock, not the product.
+		downmsg=$("$HARNESS/down.sh" 2>&1)
+		downdc=$?
+		case "$downmsg" in *escalat*) echo "  note: $downmsg" ;; esac
+		if [ $downdc -ne 0 ]; then
+			echo "  -> teardown FAILED after $name: $downmsg"
+			echo "     stopping the run; every session after this would fail on the leftover lock"
+			FAIL=1
+			break 2
+		fi
 	done
 done
 
