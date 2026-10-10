@@ -104,6 +104,7 @@ that must not be broken, not the measurements.
 
 ## Tests
 - **Run `npm test`** (`node --test test/*.test.js`) after editing a pure module. No gjs, no dependencies, no build step.
+- `npm run test:coverage` — the same pure suites under Node's built-in coverage (`--experimental-test-coverage`), test files excluded so only the loadable modules and `scripts/*.mjs` are reported. A **reading, not a gate** (no threshold); the shell-bound `lib/{database,preferences,ui}` and `extension.js` never appear.
 - Exactly five modules are loadable outside the shell, so exactly those can be unit-tested. Four are covered:
 
   | module | suite |
