@@ -447,3 +447,10 @@ Change   `up.sh` now creates `$WORK/runtime` (mode 0700, as the runtime-dir spec
 Evidence L1, measured: after the change `up.sh` starts the shell, `$WORK/runtime` holds `wayland-copyous-harness`, its `.lock` and `gnome-shell-disable-extensions`, while the real `/run/user/1000` still lists only the session's own `wayland-0` (no copyous socket, no marker); the nested shell answers `gdbus … org.gnome.Shell.Eval 'global.display.get_n_monitors()'` → `(true, '1')`; `down.sh` reports "no wayland-copyous-harness processes left". `npm test` 114/114
 Cost     None for the product. A `wayland-copyous-harness` socket left in a real runtime dir by a *pre-fix* run is not cleaned by this — a logout is still how that goes away
 Commit   9254ce1
+
+### D-061 · 2026-10-10 · guard · v9
+Symptom  `STANDARD.md` §7 (machine-wide) requires every `.gitignore` to carry at least the runtime ignore list `.venv/ venv/ __pycache__/ *.db *.db-wal *.db-shm .pytest_cache/ reports/`. This repo already covered the database family (`*.db` / `*.db-wal` / `*.db-shm` / `*.db-journal`, plus `clipboard.json` and `custom-theme.css`) and `reports/`, but none of the Python-tooling entries, so a stray `.venv/`, `__pycache__/` or `.pytest_cache/` dropped beside the extension during testing would have shown up as untracked and been committable
+Change   Added the four missing entries (`.venv/`, `venv/`, `__pycache__/`, `.pytest_cache/`) under a labeled block citing STANDARD §7. Every existing rule is left byte-identical, including the whole "Local runtime state" block and its comment
+Evidence L0: `git check-ignore -v .venv/x __pycache__/x.py foo.db .pytest_cache/x` now names `.gitignore` for all four paths (before the change the two Python paths did not resolve); `node --test test/repo.test.js` 5/5; `npm run check:log` PASS
+Cost     The block is a rule, not a check — only `reports/` is pinned by `test/repo.test.js`, so the full list can still drift. No Python tooling runs against this extension, so the entries are prophylactic
+Commit   401f2e2
