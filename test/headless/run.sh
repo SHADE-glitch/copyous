@@ -21,7 +21,7 @@ set -u
 HARNESS=$(cd "$(dirname "$0")" && pwd)
 WORK=${COPYOUS_WORK:-/tmp/copyous-harness}
 OUT=$WORK/out
-ALL_PROBES="01 02 03 04 05 06"
+ALL_PROBES="01 02 03 04 05 06 07 08 09 10 11 12"
 ALL_CONFIGS="live unwindowed horizontal"
 
 CFG=${1:-}
@@ -30,7 +30,10 @@ if [ -z "$CFG" ]; then
 usage: $0 <config|all> [probe ...]
   configs: $ALL_CONFIGS all
   probes : $ALL_PROBES  (01 search-equivalence 02 lifecycle-modal 03 invariants
-                         04 windowed-structure 05 windowed-cost 06 ux-hidden)
+                         04 windowed-structure 05 windowed-cost 06 ux-hidden
+                         07 wiring 08 permissions 09 cache-residue
+                         10 notification-loopgap 11 grab-failure
+                         12 actions-config)
 EOF
 	exit 2
 fi
@@ -93,6 +96,12 @@ eval(imports.byteArray.toString(GLib.file_get_contents('$OUT/$config-$name.eval.
 	fi
 }
 
+# Tripwire for the one thing a test run must never touch: the user's own settings directory.
+# The isolation in up.sh is asserted there, but an assertion only refuses to start -- this
+# catches damage done anyway. `~/.local/share` is deliberately not hashed: the live session
+# writes clipboard history there while the tests run, so it would always differ.
+LIVE_CONFIG_START=$( (cd "$HOME/.config/copyous@local" 2>/dev/null && /bin/ls -l | cksum) || true )
+
 FAIL=0
 for config in $CONFIGS; do
 	if [ ! -f "$HARNESS/configs/$config.json" ]; then
@@ -128,6 +137,60 @@ echo "CRITICAL/JS ERROR lines across all sessions: $crit"
 if [ "$crit" -gt 0 ]; then
 	FAIL=1
 	cat "$OUT"/*.shell.log | grep -aE "CRITICAL|JS ERROR" | head -8
+fi
+
+# A rejected promise with no handler is GJS's third print form: it matches neither CRITICAL
+# nor JS ERROR, and it is how a broken actions config announced itself for an hour and a half
+# while every gate above stayed green.
+rejects=$(cat "$OUT"/*.shell.log 2>/dev/null | grep -acE "Unhandled promise rejection")
+[ -z "$rejects" ] && rejects=0
+echo "unhandled promise rejections across all sessions: $rejects"
+if [ "$rejects" -gt 0 ]; then
+	FAIL=1
+	cat "$OUT"/*.shell.log | grep -a -A2 "Unhandled promise rejection" | grep -aE "Unhandled promise rejection|\.js:" | head -12
+
+fi
+
+LIVE_CONFIG_END=$( (cd "$HOME/.config/copyous@local" 2>/dev/null && /bin/ls -l | cksum) || true )
+if [ "$LIVE_CONFIG_START" != "$LIVE_CONFIG_END" ]; then
+	FAIL=1
+	echo "USER DATA TOUCHED: ~/.config/copyous@local changed during the run ($LIVE_CONFIG_START -> $LIVE_CONFIG_END)"
+	echo "  a probe escaped the isolation; do not trust any number from this run"
+fi
+
+# GJS prints access to a disposed object as a *warning*, so it matches neither CRITICAL
+# nor JS ERROR -- the gate above is blind to the whole class. Count it, and attribute it:
+# ours if a stack frame is under extensions/copyous@local/, or if the message itself names
+# one of our registered classes (they are all Gjs_common_gjs_<Name> because every class is
+# registered through lib/common/gjs.js). Foreign ones are reported, never judged: grepping
+# this by extension name instead gives absurd false hits, and a gate that cries wolf is
+# switched off within a week.
+dpair=$(cat "$OUT"/*.shell.log 2>/dev/null | awk '
+	/has been already disposed/ {
+		total++
+		if ($0 ~ /Gjs_common_gjs_/) { ours++; next }
+		pending = 1; frames = 0; next
+	}
+	pending {
+		if ($0 ~ /extensions\/copyous@local\//) { ours++; pending = 0; next }
+		if ($0 ~ /== Stack trace/ || $0 ~ /#[0-9]+ /) {
+			frames++
+			if (frames >= 40) pending = 0
+			next
+		}
+		pending = 0
+	}
+	END { printf "%d %d\n", total, ours }
+')
+disposed_total=${dpair%% *}
+disposed_ours=${dpair##* }
+[ -z "$disposed_total" ] && disposed_total=0
+[ -z "$disposed_ours" ] && disposed_ours=0
+echo "disposed-object warnings: $disposed_total total, $disposed_ours attributable to copyous, $((disposed_total - disposed_ours)) foreign (reported only)"
+if [ "$disposed_ours" -gt 0 ]; then
+	FAIL=1
+	echo "  ^ a destroy chain is open; this is the class CRITICAL/JS ERROR cannot see"
+	cat "$OUT"/*.shell.log | grep -a -A12 "has been already disposed" | grep -aE "has been already disposed|copyous@local" | head -12
 fi
 
 echo "=== timing lines from the last session ==="

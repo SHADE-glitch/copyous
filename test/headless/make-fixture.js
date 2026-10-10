@@ -76,20 +76,29 @@ function chunk(type, data) {
 	return Buffer.concat([len, body, crc]);
 }
 
-function png8x8(rgb) {
+/**
+ * A minimal truecolour PNG. `pixel(x, y)` returns [r, g, b].
+ *
+ * The 8x8 swatches are all the list needs to render an Image item, but the notification
+ * path decodes at *full* size, so probe 10 needs one image with the pixel count of a real
+ * screenshot (1728x1056 is this machine's) -- a 74-byte file measures nothing there.
+ */
+function png(width, height, pixel) {
 	const ihdr = Buffer.alloc(13);
-	ihdr.writeUInt32BE(8, 0);
-	ihdr.writeUInt32BE(8, 4);
+	ihdr.writeUInt32BE(width, 0);
+	ihdr.writeUInt32BE(height, 4);
 	ihdr[8] = 8; // bit depth
 	ihdr[9] = 2; // colour type: truecolour
-	const raw = Buffer.alloc(8 * (1 + 8 * 3));
-	for (let y = 0; y < 8; y++) {
-		const off = y * (1 + 8 * 3);
+	const stride = 1 + width * 3;
+	const raw = Buffer.alloc(height * stride);
+	for (let y = 0; y < height; y++) {
+		const off = y * stride;
 		raw[off] = 0; // filter: none
-		for (let x = 0; x < 8; x++) {
-			raw[off + 1 + x * 3] = rgb[0];
-			raw[off + 2 + x * 3] = rgb[1];
-			raw[off + 3 + x * 3] = rgb[2];
+		for (let x = 0; x < width; x++) {
+			const [r, g, b] = pixel(x, y);
+			raw[off + 1 + x * 3] = r;
+			raw[off + 2 + x * 3] = g;
+			raw[off + 3 + x * 3] = b;
 		}
 	}
 	return Buffer.concat([
@@ -99,6 +108,14 @@ function png8x8(rgb) {
 		chunk('IEND', Buffer.alloc(0)),
 	]);
 }
+
+const png8x8 = (rgb) => png(8, 8, () => rgb);
+
+// Gradient, not noise: the pixel count is what costs to decode, and a gradient keeps the
+// fixture archive small enough to regenerate on every `COPYOUS_REFRESH_FIXTURE=1`.
+const SCREENSHOT = [1728, 1056];
+const pngScreenshot = () =>
+	png(SCREENSHOT[0], SCREENSHOT[1], (x, y) => [(x * 3 + y) & 0xff, (x ^ y) & 0xff, (y * 5) & 0xff]);
 
 // --------------------------------------------------------------------------
 // Content pools. Mixed ASCII and CJK on purpose: non-ASCII is what catches a
@@ -183,6 +200,7 @@ const PINNED = 5;
 
 // Populated while building Image rows, drained by main().
 const pngFiles = new Map();
+let imageRow = 0;
 
 function buildRows(imagesDir) {
 	const rows = [];
@@ -220,7 +238,13 @@ function buildRows(imagesDir) {
 					break;
 				case 'Image': {
 					const name = `fixture${String(i).padStart(24, '0')}`;
-					pngFiles.set(`${imagesDir}/${name}.png`, png8x8([int(20, 235), int(20, 235), int(20, 235)]));
+					// Exactly one Image row is screenshot-sized. The list is happy with a
+					// 74-byte swatch; the notification preview decodes at full resolution,
+					// and probe 10 measures *that* -- see png() above.
+					pngFiles.set(
+						`${imagesDir}/${name}.png`,
+						imageRow++ === 0 ? pngScreenshot() : png8x8([int(20, 235), int(20, 235), int(20, 235)]),
+					);
 					content = `file://${imagesDir}/${name}.png`;
 					break;
 				}

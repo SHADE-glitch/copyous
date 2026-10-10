@@ -5,7 +5,7 @@
 // viewport materialization (~13x per viewport crossed in the A/B that landed it), so a
 // threshold here would either be so loose it never fires or so tight it turns a
 // known-good trade into a red build. The numbers are recorded as metrics and judged by
-// a human against the baseline in MAINTENANCE.md.
+// a human against the baseline in docs/maintenance/baseline.md.
 //
 // The structural checks are the ones that should never regress: the resident set must
 // stay bounded when windowing and must equal the list when it is not.

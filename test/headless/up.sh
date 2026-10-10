@@ -9,6 +9,12 @@
 #   * its own dbus-daemon on a private socket,
 #   * XDG_DATA_HOME pointed at a scratch tree, so the extension's app-data
 #     (highlight.min.js, languages/, images/) is read from a *copy*,
+#   * XDG_CACHE_HOME pointed at an empty scratch tree (a cache is regenerable, and
+#     `makeStoredPrivate()` chmods this directory on every enable -- without this it
+#     would tighten the user's real ~/.cache on a test run),
+#   * XDG_CONFIG_HOME pointed at a farm of symlinks into the real ~/.config plus one
+#     real directory: the extension's own `copyous@local`, so actions.json keeps the
+#     same contents as the live session while the chmod sweep stays inside $WORK,
 #   * GSETTINGS_BACKEND=memory, so no setting write ever reaches the real dconf,
 #   * DEBUG_COPYOUS_DBPATH pointed at a synthetic fixture, so the live
 #     clipboard.db is never opened by this process.
@@ -55,6 +61,39 @@ for asset in highlight.min.js languages; do
 done
 # images/ is NOT copied: the fixture generates its own PNGs under $WORK/fixture.
 
+# Cache and config need isolating too, because `makeStoredPrivate()` chmods both roots on
+# every enable. A cache is regenerable, so it starts empty. Config is a symlink farm of the
+# real ~/.config with exactly one real directory -- the extension's own -- so the shell
+# still sees every other entry it used to see, while actions.json (and its mode) is ours to
+# poison inside $WORK. Symlinks, not copies: a copy would go stale against the live one.
+rm -rf "$WORK/xdg-cache" "$WORK/xdg-config"
+mkdir -p "$WORK/xdg-cache" "$WORK/xdg-config"
+for entry in "$HOME"/.config/*; do
+	# Plain glob, not a zsh qualifier: this script is /bin/sh (dash on Ubuntu).
+	[ -e "$entry" ] || continue
+	name=${entry##*/}
+	# The extension's own directory is the one being isolated. Linking it in would make the
+	# `mkdir -p` below a no-op on a symlink and the `cp -a` write straight through into
+	# ~/.config -- which is exactly what happened before this line skipped it.
+	[ "$name" = "copyous@local" ] && continue
+	ln -s "$entry" "$WORK/xdg-config/$name"
+done
+mkdir -p "$WORK/xdg-config/copyous@local"
+
+# Assert the isolation instead of trusting it. This farm is the only thing between a probe's
+# writes and the user's real ~/.config: probe 08 overwrites actions.json on purpose, and when
+# the directory above was still a symlink that overwrite landed on the live file -- a 2-byte
+# `{}` that silently emptied the item menu for the rest of the session. Cheap check, real cost.
+for isolated in "$WORK/xdg-config" "$WORK/xdg-cache"; do
+	[ -L "$isolated" ] && { echo "FATAL: $isolated is a symlink; refusing to run against ~/.config" >&2; exit 1; }
+done
+[ -L "$WORK/xdg-config/copyous@local" ] && {
+	echo "FATAL: $WORK/xdg-config/copyous@local is a symlink; refusing to run against ~/.config" >&2
+	exit 1
+}
+[ -e "$HOME/.config/copyous@local/actions.json" ] &&
+	cp -a "$HOME/.config/copyous@local/actions.json" "$WORK/xdg-config/copyous@local/"
+
 # --- fixture ----------------------------------------------------------------------
 if [ ! -s "$WORK/fixture/fixture.db" ] || [ "${COPYOUS_REFRESH_FIXTURE:-}" = "1" ]; then
 	node "$HARNESS/make-fixture.js" --out "$WORK/fixture" 2>&1 | grep -v Warning
@@ -75,6 +114,8 @@ cp "$WORK/fixture/fixture.db" "$SESSION_DB"
 # --- start ------------------------------------------------------------------------
 export GSETTINGS_BACKEND=memory
 export XDG_DATA_HOME="$WORK/xdg"
+export XDG_CACHE_HOME="$WORK/xdg-cache"
+export XDG_CONFIG_HOME="$WORK/xdg-config"
 export GSETTINGS_SCHEMA_DIR="$EXT/schemas"
 export DEBUG_COPYOUS_DBPATH="$SESSION_DB"
 export WAYLAND_DISPLAY=$WAYLAND

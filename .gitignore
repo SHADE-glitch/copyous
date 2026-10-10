@@ -7,3 +7,9 @@
 *.db-journal
 clipboard.json
 custom-theme.css
+
+# Phase evidence for this maintenance fork: PROFILE/AUDIT/PLAN/STATE/REVIEW under
+# docs/reports/. This repo is public and those files quote raw journal lines, live
+# dconf values and the on-disk layout of the plaintext clipboard store, so they
+# stay local-only. The pattern matches the directory at any depth.
+reports/

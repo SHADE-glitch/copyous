@@ -140,7 +140,8 @@ globalThis.__co = {
 		this.metric('rss', this.rssMB());
 
 		// SearchQuery off a live instance (rule 1: no module import).
-		const SQ = Object.getPrototypeOf(dlg._header.searchEntry.searchQuery).constructor;
+		const se = dlg._header.searchEntry;
+		const SQ = Object.getPrototypeOf(se.searchQuery).constructor;
 		const SearchChange = { Same: 0, Different: 1, LessStrict: 2, MoreStrict: 3 };
 
 		return {
@@ -153,9 +154,13 @@ globalThis.__co = {
 			cont,
 			SQ,
 			SearchChange,
+			// The memo table belongs to the SearchEntry, so probes query the same object the
+			// UI does -- and so a probe can see whether anything outlives disable().
+			searchEntry: se,
+			matchCache: se._matchCache,
 			// A Different change forces a full re-evaluation, bypassing the
 			// incremental Same/LessStrict/MoreStrict shortcuts.
-			mk: (q) => new SQ(SearchChange.Different, q, false, false, null, false, null),
+			mk: (q) => new SQ(SearchChange.Different, q, false, false, null, false, null, se._matchCache),
 			// Full-arity query factory for probes that need type/pinned/tag filters.
 			q: (change, text, o = {}) =>
 				new SQ(
@@ -166,6 +171,7 @@ globalThis.__co = {
 					o.tag ?? null,
 					o.excludeTagged ?? false,
 					o.type ?? null,
+					se._matchCache,
 				),
 			// Visible item children only: unwindowed, a search hides non-matching
 			// actors rather than removing them, so "children mirror _filtered" has to
