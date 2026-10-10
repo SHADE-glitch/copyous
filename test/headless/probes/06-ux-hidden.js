@@ -114,6 +114,12 @@
 					adj().value = Math.min(max, Math.round(i * per * rowsPerViewport));
 					worst = Math.max(worst, co.ms() - t);
 					steps++;
+					// The paired marker after the assignment, and before the sleep: whether the
+					// freeze is inside relayout or inside `co.sleep` are two different bugs, and the
+					// first stall was silent about which.
+					print(`[copyous-probe] scroll pass=${pass} step=${i} assigned value=${Math.round(
+						co.ms() - t,
+					)}ms`);
 					if (steps > STEP_CAP) {
 						cappedAt = steps;
 						break;
