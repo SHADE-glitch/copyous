@@ -30,6 +30,37 @@ extent A/B（同一会话内强制全量再收回，唯一变量是 actor 数）
 
 搜索等价：每臂 6630 次全量比对 + 2550 次增量比对，**0 不一致**。
 
+### L2 真实会话（2026-10-10 11:19:34 起的 shell，PID 350714 —— 跑的就是含 `0a0368f` 的已提交代码）
+
+"新代码真在跑"不靠"通常要重启"这类记忆，靠两条时间戳：
+
+```sh
+ps -o pid,lstart -p 350714                                  # Sat Oct 10 11:19:34 2026
+find extension.js lib -name '*.js' -newermt '2026-10-10 11:19:34' | wc -l   # 0
+journalctl --no-pager -o cat --since '2026-10-10 11:19:34' _PID=350714 | grep -a '\[Copyous\]'
+journalctl --no-pager -o cat --since '2026-10-10 11:19:34' _PID=350714 \
+  | grep -acE 'CRITICAL|JS ERROR|Unhandled promise rejection|has been already disposed|assertion .* failed'
+```
+
+```
+loaded 255 entries in 93.293ms   filled 255 entries in 127.596ms   warmup took 13.917ms
+开框四次：TTI 160.189（冷）/ 44.510 / 33.636 / 13.522ms
+          page_size 冷开 0px、其后 535px；常驻 actor 3 → 7；idle after redraw 707.6 / 124.0 / 104.1 / 104.2ms
+五种打印形态跨本会话：CRITICAL 0 / JS ERROR 1 / rejection 0 / disposed 0 / GLib 断言 0
+          那 1 条是 `ui/dash.js:602 can't access property "ensure_style", firstIcon.icon is null`，
+          栈里没有本仓帧（与 2026-10-07 那栏是同一条别的扩展触发的老错误）
+GetExtensionErrors = 空数组；GetExtensionInfo: state=1.0、error=''、enabled=true、version=9.0
+盘上权限：数据目录 700，`clipboard.db`/`-wal`/`-shm`、`images/*.png` 全 600，
+          `find ~/.local/share/copyous@local -perm /077` 无输出（11:28 那批写入就是新代码写的）
+空转成本 `./test/headless/idle-cost.sh 30 3`：三拍 delta −0.010 / −0.040 / +0.070 CPU-s，
+          均值 0.007 CPU-s / 30s 窗 → VERDICT: NOT MEASURABLE（低于 1 tick = 10ms 的分辨率，
+          这不等于"零成本"，只等于"这台仪器看不见"）
+```
+
+与下面 2026-10-07 那栏（`loaded 371 / filled 151`）相比方向是好的，但**只当方向看**：会话年龄、
+库内容、冷开与暖开的相对关系都会跨 boot 翻转，`open(): show` 与这些毫秒数不是判据（判据见
+[reading-the-log.md](reading-the-log.md)）。
+
 ### L2 真实会话（2026-10-07 22:01 登录，PID 101341）
 
 ```
