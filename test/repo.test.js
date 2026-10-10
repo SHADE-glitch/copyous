@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // © SHADE-glitch — repository-level guards for copyous@local.
 //
-// These tests assert nothing about runtime behaviour. They guard an invariant of
-// the repository itself: the two-file bilingual README pair staying in step. A
-// silent violation here costs nothing at runtime and everything at review time,
-// so it belongs in `npm test` (desktop-free: no gjs, no GNOME, no network).
+// These tests assert nothing about runtime behaviour. They guard invariants of the
+// repository itself: the two-file bilingual README pair staying in step, the maintenance
+// handbook's router reaching every topic file, and no citation by section number anywhere
+// that ships. A silent violation here costs nothing at runtime and everything at review
+// time, so it belongs in `npm test` (desktop-free: no gjs, no GNOME, no network).
 //
 //   npm test
 //
@@ -69,5 +70,50 @@ describe("documentation conventions hold", () => {
     it("no tracked markdown uses task checkboxes", () => {
         for (const f of FILES.filter(x => x.endsWith(".md")))
             assert.ok(!/^\s*- \[[ xX]\]/m.test(read(f)), `${f} contains a task checkbox`);
+    });
+
+    // INVARIANTS.md is a pointer file: its whole claim is that it owns no prose that lives
+    // elsewhere. That claim is only real if something checks it, because the failure mode --
+    // pasting a CHANGELOG line in because it reads better here -- produces a document that
+    // looks more useful while quietly becoming the copy that rots.
+    it("INVARIANTS.md restates nothing from the record it points at", () => {
+        const pointer = read("INVARIANTS.md");
+        assert.match(pointer, /check-log\.mjs --invariants/,
+            "INVARIANTS.md must name the command that prints the recorded fixes; that is the alternative to copying them");
+        const record = read("CHANGELOG.md").split("\n").map(l => l.trim()).filter(Boolean);
+        for (const own of ["INVARIANTS.md", "INVARIANTS.zh-CN.md"]) {
+            for (const line of read(own).split("\n").map(l => l.trim()).filter(l => l.length > 20)) {
+                const clash = record.find(r => r === line || (r.length > 30 && line.includes(r)));
+                assert.equal(clash, undefined,
+                    `${own} carries a line verbatim out of CHANGELOG.md -- print it with --invariants instead: ${line.slice(0, 70)}`);
+            }
+        }
+    });
+
+    // The maintenance handbook is a router over `docs/maintenance/`. Two things can go wrong
+    // silently when its prose moves: a file nobody links (invisible, so nobody reads it and
+    // someone writes the fact a second time elsewhere), and a citation by section number
+    // (the numbers were a property of the old single file, and they now resolve to nothing).
+    it("every maintenance topic file is reachable from the router", () => {
+        const topics = FILES.filter(f => f.startsWith("docs/maintenance/") && f.endsWith(".md"));
+        assert.ok(topics.length >= 1, "no topic files found under docs/maintenance/ -- the split is gone");
+        const router = read("MAINTENANCE.md");
+        for (const f of topics)
+            assert.ok(router.includes(`](${f})`), `${f} is not linked from MAINTENANCE.md; an unlinked file does not exist`);
+    });
+
+    it("nothing cites a section number, because no file numbers its sections any more", () => {
+        // The forbidden character is built with String.fromCharCode, not written literally:
+        // a guard that spells out what it forbids trips on its own source. This one found
+        // exactly that on its first run.
+        const SECTION_SIGN = String.fromCharCode(0xa7);
+        // `docs/reports/` is dated scratch: it is gitignored, and its records quote the handbook
+        // as it read when the note was written. Everything that ships is held to the rule.
+        const cited = FILES
+            .filter(f => /\.(md|js|mjs|sh)$/.test(f))
+            .filter(f => !f.startsWith("docs/reports/"))
+            .filter(f => read(f).includes(SECTION_SIGN));
+        assert.deepEqual(cited, [],
+            `these files still cite a section number: ${cited.join(", ")} -- point at the file instead`);
     });
 });

@@ -23,9 +23,12 @@ const CHANGELOG = 'CHANGELOG.md';
  *  resources.gresource), so stylesheets are deliberately not listed. */
 const CODE_PATHS = ['extension.js', 'lib/'];
 
-/** Five kinds. `perf` was added during adoption of this repo: a large share of the work here is
+/** Six kinds. `perf` was added during adoption of this repo: a large share of the work here is
  *  resource/throughput work that is neither a correctness bug (fix) nor a preference (taste), and
- *  folding it into either would misstate what an upgrade is allowed to drop. */
+ *  folding it into either would misstate what an upgrade is allowed to drop. `chore` was added later
+ *  for the residue that owes nothing in either direction (dead code removed, a comment corrected, a
+ *  document relocated) — forcing it into perf or taste would make the upgrade question answer wrong.
+ *  Keep this list and the header prose in CHANGELOG.md in step; the checker is the one that goes red. */
 const KINDS = ['fix', 'perf', 'taste', 'guard', 'revert', 'chore'];
 const FIELDS = ['Symptom', 'Change', 'Evidence', 'Cost', 'Commit'];
 
@@ -61,6 +64,27 @@ if (!anchorSha) fail(`1. coverage anchor does not resolve: ${anchor}`);
 const entryRe = /^### (D-\d+) · (\d{4}-\d{2}-\d{2}) · ([a-z]+)(?: · (.*))?$/gm;
 const entries = [...changelog.matchAll(entryRe)];
 const ids = entries.map((m) => m[1]);
+
+/** `--invariants`: read the recorded fixes out of the record instead of copying them into
+ *  INVARIANTS.md. That file is a pointer and must hold no hand-copied list, because a second
+ *  copy of a fact rots while the record stays authoritative. An empty result is a failure,
+ *  not an empty report: a silently blank invariant list is worse than none. */
+if (process.argv.includes('--invariants')) {
+  const fixes = entries.filter((m) => m[3] === 'fix');
+  if (fixes.length === 0) {
+    console.error('[check:log --invariants] FAIL: the record has no kind:fix entry');
+    process.exit(1);
+  }
+  for (const m of fixes) {
+    const body = changelog.slice(changelog.indexOf(m[0]) + m[0].length).split(/^### /m)[0];
+    const commit = (body.match(/^Commit\s+(.*)$/m) || [, '(none stated)'])[1].trim();
+    const symptom = (body.match(/^Symptom\s+(.*)$/m) || [, ''])[1].trim();
+    console.log(`${m[1]} · ${m[2]} · ${commit}`);
+    if (symptom) console.log(`      ${symptom}`);
+  }
+  console.log(`[check:log --invariants] ${fixes.length} recorded fix(es) — the authority is CHANGELOG.md, not INVARIANTS.md`);
+  process.exit(0);
+}
 
 if (entries.length === 0) {
   fail('0. the record has no entries — a coverage check over an empty set proves nothing. Widen the window to where real deviations exist, or state in the header that there are none to record.');
