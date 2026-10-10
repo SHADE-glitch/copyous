@@ -45,6 +45,20 @@ globalThis.__co = {
 	},
 	done() {
 		this.out.phase = 'done';
+		// The other leg of CO_SKIP_PHASES: a name that matched no phase means the run proved
+		// nothing about the block it claimed to remove, so it fails loudly instead of passing.
+		const want = String(imports.gi.GLib.getenv('CO_SKIP_PHASES') ?? '')
+			.split(',')
+			.map((s) => s.trim())
+			.filter(Boolean);
+		if (want.length) {
+			const got = this.out.skippedPhases ?? [];
+			const never = want.filter((w) => !got.includes(w));
+			this.chk(
+				'everyRequestedSkipRan',
+				never.length === 0 ? true : `named in CO_SKIP_PHASES but never skipped: ${never.join(', ')}`,
+			);
+		}
 		this.write();
 	},
 	// A probe whose subject is not active in this config must say so, not quietly
@@ -80,6 +94,20 @@ globalThis.__co = {
 	// a red here means "go look", not "this is slow".
 	async phase(name, budgetMs, fn) {
 		const GLib = imports.gi.GLib;
+		// `CO_SKIP_PHASES=a,b` cuts named blocks out of a probe. That is the only way to ask the
+		// bisect question -- "does the intermittent stall still happen without this block?" -- and
+		// every skip is recorded and re-checked in done(), because a phase name that does not match
+		// anything would otherwise buy a green run that bisected nothing.
+		const wanted = String(GLib.getenv('CO_SKIP_PHASES') ?? '')
+			.split(',')
+			.map((s) => s.trim())
+			.filter(Boolean);
+		if (wanted.includes(name)) {
+			(this.out.skippedPhases ??= []).push(name);
+			(this.out.phases ??= []).push({ phase: name, ms: 0, budgetMs, outcome: 'skipped' });
+			print(`[copyous-probe] phase ${name} SKIPPED (CO_SKIP_PHASES)`);
+			return true;
+		}
 		// Printed before the work starts, not after: when the main thread is blocked inside C, the
 		// result file is never written and the deadline never fires, so this line -- picked up by the
 		// harness's stall snapshot -- is the only thing that says which phase was running.

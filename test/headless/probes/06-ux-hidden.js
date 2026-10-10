@@ -105,6 +105,11 @@
 				let worst = 0;
 				let steps = 0;
 				for (let i = 0; i * per * rowsPerViewport <= max; i++) {
+					// One line per step. The 2026-10-10 stalls all landed inside this loop, and the
+					// main thread never returns to the deadline, so nothing but a marker written
+					// *before* the step can say which step it died on. Printing after a slow step
+					// would be useless -- the freeze happens during it.
+					print(`[copyous-probe] scroll pass=${pass} step=${i}`);
 					const t = co.ms();
 					adj().value = Math.min(max, Math.round(i * per * rowsPerViewport));
 					worst = Math.max(worst, co.ms() - t);

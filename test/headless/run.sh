@@ -44,6 +44,10 @@ PROBES=${*:-$ALL_PROBES}
 [ -z "$PROBES" ] && PROBES=$ALL_PROBES
 
 mkdir -p "$OUT"
+# Session logs are named per (config, probe) and never pruned, so `grep ... *.shell.log` below
+# judges every session this directory has ever held: a diagnostic probe deleted last week would
+# keep a red alive forever, and a content sentinel makes that visible. A run judges its own runs.
+rm -f "$OUT"/*.shell.log
 # Must be set before anything calls gdbus. Exporting it only after the shell came up
 # meant wait_for_shell talked to the *user's real* session bus and tried to Eval there.
 export DBUS_SESSION_BUS_ADDRESS=unix:path=$WORK/bus
@@ -214,6 +218,34 @@ if [ "$rejects" -gt 0 ]; then
 	FAIL=1
 	cat "$OUT"/*.shell.log | grep -a -A2 "Unhandled promise rejection" | grep -aE "Unhandled promise rejection|\.js:" | head -12
 
+fi
+
+# Content sentinel. Everything above counts *kinds* of failure and reads none of the words: a line
+# of clipboard body printed into a session log is not CRITICAL, not an error, not a rejection -- it
+# is just a leak, which is why both journal leaks this fork fixed (printing a whole entry object,
+# printing an action's stderr) went unnoticed until someone read the log by hand. Patterns come
+# from make-fixture.js itself, so the list cannot drift from the data, and a broken extractor is a
+# failed run rather than a silent green. Report names the file, the line and *which phrase*
+# matched -- never the line's text, so this gate cannot become the leak it is checking for.
+phrases=$OUT/fixture-phrases.txt
+logcount=0
+for f in "$OUT"/*.shell.log; do
+	[ -f "$f" ] && logcount=$((logcount + 1))
+done
+if node "$HARNESS/fixture-phrases.mjs" >"$phrases" 2>"$OUT/fixture-phrases.err"; then
+	leaks=$(grep -a -o -F -f "$phrases" "$OUT"/*.shell.log 2>/dev/null | wc -l | tr -d ' ')
+	[ -z "$leaks" ] && leaks=0
+	echo "fixture body text in session logs: $leaks line(s) across $logcount session(s)"
+	if [ "$leaks" -gt 0 ]; then
+		FAIL=1
+		# `-H` on purpose: with a single session log, grep drops the filename and the report is a
+		# bare line number -- which session leaked is the first thing anyone reading this needs.
+		grep -a -H -n -o -F -f "$phrases" "$OUT"/*.shell.log 2>/dev/null | head -8
+	fi
+else
+	FAIL=1
+	echo "fixture body text in session logs: SENTINEL DID NOT RUN -- no phrase list, so nothing was checked"
+	head -3 "$OUT/fixture-phrases.err"
 fi
 
 LIVE_CONFIG_END=$( (cd "$HOME/.config/copyous@local" 2>/dev/null && /bin/ls -l | cksum) || true )
