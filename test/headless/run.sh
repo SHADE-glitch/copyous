@@ -62,6 +62,41 @@ wait_for_shell() {
 	return 1
 }
 
+# A stalled session is un-attributable unless something records the moment: by the time a human
+# looks, the shell is dead and the only artifact left is a log that simply stopped. This writes
+# down what the kernel already knows -- busy or waiting, waiting on what, and whether it is
+# paging -- before teardown. The two majflt samples 2s apart are the point: they separate a
+# deadlock from a swap storm on this laptop, and the two things need opposite responses.
+snapshot_stall() {
+	cfg=$1
+	name=$2
+	poll=$3
+	snap=$OUT/$cfg-$name.stall.txt
+	shellpid=$(cat "$WORK/shell.pid" 2>/dev/null)
+	{
+		echo "stall: $cfg/$name after $((poll * 5))s, at $(date +%H:%M:%S)"
+		echo "shell pid: ${shellpid:-unknown}"
+		if [ -n "$shellpid" ] && [ -d "/proc/$shellpid" ]; then
+			ps -o pid,stat,time,wchan:26,rss,args -p "$shellpid"
+			echo "wchan: $(cat "/proc/$shellpid/wchan" 2>/dev/null)"
+			echo "majflt sample 1: $(awk '{print $12}' "/proc/$shellpid/stat" 2>/dev/null)"
+			sleep 2
+			echo "majflt sample 2: $(awk '{print $12}' "/proc/$shellpid/stat" 2>/dev/null)"
+			echo "thread names:"
+			for t in "/proc/$shellpid"/task/*; do cat "$t/comm" 2>/dev/null; done | sort | uniq -c | sort -rn | head -12
+			echo "per-thread state/wchan:"
+			ps -o tid,stat,wchan:26 -p "$shellpid" -L 2>/dev/null | head -14
+			eval_out=$(timeout 5 gdbus call --session --dest org.gnome.Shell --object-path /org/gnome/Shell \
+				--method org.gnome.Shell.Eval '1+1' 2>&1)
+			echo "eval rc=$? reply: $(printf '%s' "$eval_out" | tr '\n' ' ' | head -c 120)"
+		fi
+		echo "memory: $(grep -E 'SwapTotal|SwapFree|^MemAvailable' /proc/meminfo | tr '\n' ' ')"
+		echo "log tail:"
+		tail -8 "$OUT/$cfg-$name.shell.log" 2>/dev/null
+	} >"$snap" 2>&1
+	echo "     stall snapshot: $snap"
+}
+
 run_probe() {
 	probe=$1
 	name=$2
@@ -83,7 +118,10 @@ run_probe() {
 eval(imports.byteArray.toString(GLib.file_get_contents('$OUT/$config-$name.eval.js')[1]))" \
 		>/dev/null 2>&1
 	i=0
-	while [ ! -s "$result" ] && [ $i -lt 90 ]; do
+	# One knob so the stall instrumentation can be exercised in seconds rather than by waiting
+	# out a real 450s timeout: CO_PROBE_POLL counts the 5-second ticks.
+	poll=${CO_PROBE_POLL:-90}
+	while [ ! -s "$result" ] && [ $i -lt "$poll" ]; do
 		sleep 5
 		i=$((i + 1))
 	done
@@ -91,7 +129,8 @@ eval(imports.byteArray.toString(GLib.file_get_contents('$OUT/$config-$name.eval.
 	if [ -s "$result" ]; then
 		node "$HARNESS/verdict.js" "$result" "$name"
 	else
-		echo "     TIMEOUT after 450s"
+		echo "     TIMEOUT after $((poll * 5))s"
+		snapshot_stall "$config" "$name" "$poll"
 		return 1
 	fi
 }
