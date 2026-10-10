@@ -86,9 +86,178 @@ rm -rf ~/.local/share/gnome-shell/extensions/copyous@local
 
 打开 **GNOME 设置 → 扩展 → Copyous → 设置**，可配置数据库后端与位置、外观与主题、指示器与对话框行为、提示音、快捷键、标签与动作。
 
+设置窗一共四页：**常规**（历史、反馈、行为、排除项、依赖、位置）、**定制**（预设、对话框、条目、头部、各类条目、主题）、**快捷键**（对话框、条目、条目触发、筛选菜单、导航、搜索、搜索过滤、搜索滚动）与**动作**（动作、默认值、内置动作）。
+
+关于这个窗口有两件事是**被命令保证的**，不是写在这里的承诺：
+
+- **每个会改值的行都在自己的副标题里说清它改什么**，每个分组有标题，每个只有图标的按钮有 tooltip —— `./test/prefs/run.sh` 在 Xvfb 下真建整棵控件树，加一行不写副标题就判红。
+- **每项设置都回得去。** 每行右侧有一个只管这一项的 undo 按钮；值已经是默认时它变灰但仍然看得见。少了回去的路，`node scripts/settings-coverage.mjs` 就让构建失败。
+
+光看标签看不出来的行为：
+
+| 设置 | 实际会发生什么 |
+|---|---|
+| 动态条目高度 | 这就是**视口窗口化**的开关。关（本机现状）= 只有可见的那几行是真实 actor，250 条列表才能秒开；开 = 每行都建出来并常驻。**Compact 预设**会把它设回开，所以点了 Compact 之后窗口化的收益会**无声消失** —— 「怎么又卡了」先查这一项。 |
+| 历史长度 | 约束的是**淘汰**，不是显示。对话框渲染库里全部的行，而置顶/加标签的行永不淘汰，所以置顶越多，看到的列表越长。 |
+| 复制即粘贴 | 设置窗里**故意没有这行**：`lib/common/settings.js` 的迁移把它折进**交换复制/粘贴快捷键**并重置。 |
+| 发送通知 | 通知里的图片预览会在主线程上解码那张图，实测每张**约 24–46ms**。两趟全量解码已经压成一趟，剩下的就是这项功能的已知代价。 |
+| 抖动指示器 | 用的是 shell 自带的抖动动画，除了开/关没有可调的东西。 |
+| 关闭 Gda 提示 | 压住的是**两条**「Failed to load Gda」通知 —— typelib 加载不了的那条，和数据库自己抛异常的那条。上游只压第一条，于是用户在真正会失败的那条路上照样被弹，开关看起来像没用。 |
+| 询问安装 Highlight.js | 它是 `disable-hljs-dialog` 的反向开关，而那个键原先**只有一个写路径**：下载询问框上的 Cancel。按一次就永远不再问，而且没有任何地方能改回来。关掉它等于恢复旧行为；一次成功安装会自己把它打开。 |
+
+### 全部键名、类型与默认值
+
+这张表由 schema 生成，所以它不会宣传一个不存在的设置，也不会藏起一个存在的。
+刷新命令 `node scripts/settings-reference.mjs --write`，`npm test` 会检查它是否过期。
+
+<!-- settings-reference:start -->
+### `(root)`
+
+| 键名 | 类型 | 默认值 | 取值范围 / 选项 |
+|---|---|---|---|
+| `incognito` | boolean | `false` | — |
+| `disable-gda-warning` | boolean | `false` | — |
+| `disable-hljs-dialog` | boolean | `false` | — |
+| `in-memory-database` | boolean | `false` | — |
+| `database-backend` | enum | `'default'` | default / memory / sqlite / json |
+| `database-location` | string | `''` | — |
+| `clipboard-history` | enum | `'keep-pinned-and-tagged'` | clear / keep-pinned-and-tagged / keep-all |
+| `history-length` | integer | `50` | 10 – 500 |
+| `history-time` | integer | `0` | 0 – 1440 |
+| `remember-search` | boolean | `false` | — |
+| `exclude-pinned` | boolean | `false` | — |
+| `exclude-tagged` | boolean | `false` | — |
+| `protect-pinned` | boolean | `true` | — |
+| `protect-tagged` | boolean | `true` | — |
+| `paste-on-copy` | boolean | `true` | — |
+| `sync-primary` | boolean | `false` | — |
+| `update-date-on-copy` | boolean | `true` | — |
+| `show-indicator` | boolean | `true` | — |
+| `show-content-indicator` | boolean | `false` | — |
+| `wiggle-indicator` | boolean | `true` | — |
+| `send-notification` | boolean | `false` | — |
+| `sound` | string | `'none'` | — |
+| `volume` | double | `0.0` | -20.0 – 20.0 |
+| `wmclass-exclusions` | unknown | `[]` | — |
+| `show-at-pointer` | boolean | `false` | — |
+| `show-at-cursor` | boolean | `false` | — |
+| `clipboard-orientation` | enum | `'horizontal'` | horizontal / vertical |
+| `clipboard-position-vertical` | enum | `'top'` | top / left / center / bottom / right / fill |
+| `clipboard-position-horizontal` | enum | `'fill'` | top / left / center / bottom / right / fill |
+| `clipboard-size` | integer | `500` | 200 – 10000 |
+| `clipboard-margin-top` | integer | `6` | 0 – 10000 |
+| `clipboard-margin-right` | integer | `6` | 0 – 10000 |
+| `clipboard-margin-bottom` | integer | `6` | 0 – 10000 |
+| `clipboard-margin-left` | integer | `6` | 0 – 10000 |
+| `auto-hide-search` | boolean | `false` | — |
+| `show-scrollbar` | boolean | `true` | — |
+| `item-width` | integer | `250` | 200 – 1000 |
+| `item-height` | integer | `170` | 50 – 1000 |
+| `dynamic-item-height` | boolean | `false` | — |
+| `tab-width` | integer | `4` | 1 – 8 |
+| `show-header` | boolean | `true` | — |
+| `header-controls-visibility` | enum | `'visible'` | visible / visible-on-hover / hidden |
+| `show-item-title` | boolean | `true` | — |
+| `open-clipboard-dialog-shortcut` | unknown | `['&lt;Super&gt;&lt;Shift&gt;v']` | — |
+| `toggle-incognito-mode-shortcut` | unknown | `['&lt;Super&gt;&lt;Control&gt;&lt;Shift&gt;v']` | — |
+| `open-clipboard-dialog-behavior` | enum | `'toggle'` | toggle / open-or-select-next |
+| `pin-item-shortcut` | unknown | `['&lt;Control&gt;s']` | — |
+| `delete-item-shortcut` | unknown | `['Delete']` | — |
+| `edit-item-shortcut` | unknown | `['&lt;Control&gt;e']` | — |
+| `edit-title-shortcut` | unknown | `['&lt;Control&gt;t']` | — |
+| `open-menu-shortcut` | unknown | `['&lt;Control&gt;a']` | — |
+| `middle-click-action` | enum | `'pin'` | none / pin / delete |
+| `swap-copy-shortcut` | boolean | `false` | — |
+| `swap-scroll-shortcut` | boolean | `false` | — |
+
+### `(root).text-item`
+
+| 键名 | 类型 | 默认值 | 取值范围 / 选项 |
+|---|---|---|---|
+| `show-text-info` | boolean | `false` | — |
+| `text-count-mode` | enum | `'characters'` | characters / words / lines |
+
+### `(root).code-item`
+
+| 键名 | 类型 | 默认值 | 取值范围 / 选项 |
+|---|---|---|---|
+| `syntax-highlighting` | boolean | `true` | — |
+| `show-line-numbers` | boolean | `true` | — |
+| `show-code-info` | boolean | `false` | — |
+| `text-count-mode` | enum | `'characters'` | characters / words / lines |
+
+### `(root).image-item`
+
+| 键名 | 类型 | 默认值 | 取值范围 / 选项 |
+|---|---|---|---|
+| `show-image-info` | boolean | `false` | — |
+| `background-size` | enum | `'cover'` | cover / contain |
+
+### `(root).file-item`
+
+| 键名 | 类型 | 默认值 | 取值范围 / 选项 |
+|---|---|---|---|
+| `file-preview-visibility` | enum | `'file-preview-or-file-info'` | file-preview / file-info / file-preview-or-file-info / file-preview-and-file-info / hidden |
+| `file-preview-types` | flag set | `['text','image','thumbnail']` | — |
+| `file-preview-exclusion-patterns` | unknown | `[]` | — |
+| `background-size` | enum | `'cover'` | cover / contain |
+| `syntax-highlighting` | boolean | `true` | — |
+| `show-line-numbers` | boolean | `true` | — |
+
+### `(root).link-item`
+
+| 键名 | 类型 | 默认值 | 取值范围 / 选项 |
+|---|---|---|---|
+| `show-link-preview` | boolean | `true` | — |
+| `show-link-preview-image` | boolean | `true` | — |
+| `link-preview-image-background-size` | enum | `'contain'` | cover / contain |
+| `link-preview-orientation` | enum | `'vertical'` | horizontal / vertical |
+| `link-preview-exclusion-patterns` | unknown | `[]` | — |
+
+### `(root).character-item`
+
+| 键名 | 类型 | 默认值 | 取值范围 / 选项 |
+|---|---|---|---|
+| `max-characters` | integer | `1` | 1 – 4 |
+| `show-unicode` | boolean | `false` | — |
+
+### `(root).theme`
+
+| 键名 | 类型 | 默认值 | 取值范围 / 选项 |
+|---|---|---|---|
+| `theme` | enum | `'default'` | default / yaru / custom |
+| `color-scheme` | enum | `'system'` | system / dark / light / high-contrast |
+| `custom-color-scheme` | enum | `'dark'` | dark / light / high-contrast |
+| `custom-bg-color` | string | `''` | — |
+| `custom-fg-color` | string | `''` | — |
+| `custom-card-bg-color` | string | `''` | — |
+| `custom-search-bg-color` | string | `''` | — |
+
+共 **82** 个键，分布在 **8** 条 schema 路径。每个有控件的键在设置窗里都对应一行，行右侧的 undo 按钮把它送回默认值（**79 of 79** 个控件覆盖，由 `node scripts/settings-coverage.mjs` 把关）；每一行的副标题写明它改什么，那是这些说明唯一的主人。本表由 `node scripts/settings-reference.mjs --write` 生成，不要手改。
+<!-- settings-reference:end -->
+
+## 🧯 故障排查
+
+| 现象 | 说明什么 | 怎么办 |
+|---|---|---|
+| 扩展根本不出现 | `metadata.json` 声明 `shell-version` 为 `48`–`50`，超出范围的 shell 直接不加载。这是有意的 —— 私有 API 半死不活地跑，比不加载更糟。 | 先看 `gnome-shell --version`，再看 [docs/maintenance/compatibility-matrix.md](docs/maintenance/compatibility-matrix.md) |
+| 每次注销后历史都空 | SQLite 后端走的是 **libgda**。没有 `gir1.2-gda-5.0`（或 6）时，历史退回纯内存存储，而本该提示你的那条通知可能已经被自己关掉了。 | `gsettings get org.gnome.shell.extensions.copyous database-backend`（关于 `GSETTINGS_SCHEMA_DIR` 见下面一条），或读日志里的 `Failed to load Gda` |
+| 改了代码毫无效果 | `disable` + `enable` **不会重新 import** 任何模块：GJS 在整个 shell 生命周期里缓存 ESModule。 | 注销再登录。`lib/preferences/**` 是唯一例外 —— 它跑在独立进程里，重开设置窗就够了 |
+| 条目菜单是空的，或动作页变成错误页 | `~/.config/copyous@local/actions.json` 能解析但**没有 `actions` 数组**（手写、保存了一半）。现在会回落到内置默认动作并记一条 `warn`，不会永久坏掉。 | 删掉这个文件让它重新生成，或从备份恢复 |
+| 代码不高亮 | 本机 `highlight.min.js` 不是系统包，是下载进 `~/.local/share/copyous@local/` 的。 | **设置 → 常规 → 依赖** 会问一次；**询问安装 Highlight.js** 控制以后还问不问 |
+| 输入法候选窗和文字位置对不上 | 候选窗位置跟着 shell 的 `inputMethod` 光标信号走，而 shell 只知道它自己认为的光标在哪。 | 带上你用的输入法与语言反馈 —— 这是与 shell 的交互问题，不是一个存储值 |
+| 某项设置卡住了，又找不到那一行 | schema **没有装进系统目录**（扩展自带 `schemas/gschemas.compiled`，无构建步骤），所以裸的 `gsettings` 只会回 `No such schema`。 | 读：`GSETTINGS_SCHEMA_DIR=~/.local/share/gnome-shell/extensions/copyous@local/schemas gsettings describe org.gnome.shell.extensions.copyous <键名>` —— 写这条文档时实跑的是这一条。把 `describe` 换成 `reset` 就能同样地清掉一个值，但它会写你真实的 dconf，所以这里**故意没有执行**。行右侧的 undo 按钮做的是同一件事，而且不可能点错键 |
+| 觉得慢，想知道是不是我们的锅 | 空闲 CPU 是靠**同一个 headless shell 开/关扩展做差分**测的，2026-10-09 的结论是**低于仪器分辨率** —— 所以"空转费电"解释不了卡顿。 | `./test/headless/idle-cost.sh 45 2`，然后看 [docs/maintenance/cost-measurement.md](docs/maintenance/cost-measurement.md) 里这些数能证明什么、不能证明什么 |
+| GNOME 大版本升级之后，状态未知 | 四道互相独立的闸门，按代价从低到高。 | `npm test` → `node scripts/shell-internals.mjs` → `./test/prefs/run.sh` → `./test/headless/run.sh live`，再注销登录一次读 journal |
+
+数据在哪、谁能读：历史在 `~/.local/share/copyous@local/clipboard.db`（明文 SQLite）加上 `images/`，
+动作在 `~/.config/copyous@local/actions.json`，缓存在 `~/.cache/copyous@local/`。自 2026-10-09 起，
+扩展新建或继承的每个目录/文件都是 `0700`/`0600`，并在每次 `enable()` 时纠正已在盘上的残留 ——
+详见 [docs/maintenance/database.md](docs/maintenance/database.md)。
+
 ## 🧪 测试
 
-四个模块不含 GNOME/GI 导入，因此可用纯 Node 运行 —— 无需 `gjs`、无依赖、无构建步骤：
+四个模块不含 GNOME/GI 导入，因此可用纯 Node 运行 —— 无需 `gjs`、无依赖、无构建步骤；第五个套件守的是仓库本身而不是代码：
 
 ```
 npm test
@@ -98,19 +267,36 @@ npm test
 - `lib/common/glob.js` → `test/glob.test.js`（锚定、区分 `/` 的通配符、globstar、字符类、花括号展开、元字符转义）
 - `lib/common/settings.js` → `test/settings.test.js`（绑定生命周期，以及 `paste-on-copy` 迁移）
 - `lib/misc/actor.js` → `test/actor.test.js`（仅可见项的遍历及其边界）
+- 仓库自身 → `test/repo.test.js`（中英 README 两份的 `##` 数保持对齐；全树任何 markdown 都不得出现任务复选框）
 
 `lib/common/color.js` 依赖 GNOME Shell 注入的全局 `Math.clamp`，因此 color 测试会先装上那一行定义再构造 `Color`。
 
 `lib/` 里的其余模块都导入 `gi://`，跑不了 Node，但也不是只能靠手点：`test/headless/` 会起一个隔离的
-`gnome-shell --headless`（私有 dbus、`GSETTINGS_BACKEND=memory`、独立 `XDG_DATA_HOME`、合成 DB
-fixture），用探针驱动它做语义等价、生命周期、视口窗口化与成本的断言。
+`gnome-shell --headless`（私有 dbus、`GSETTINGS_BACKEND=memory`、独立 `XDG_DATA_HOME`、
+`XDG_CACHE_HOME` 与 `XDG_CONFIG_HOME`、合成 DB fixture），用探针驱动它做语义等价、生命周期、
+视口窗口化、成本、调用点接线、落盘内容权限，以及一份能解析但缺字段的 actions 配置会不会连带打死条目菜单的断言。
 
 ```
-./test/headless/run.sh all        # 3 配置 x 5 探针，约 8 分钟
+./test/headless/run.sh all        # 3 配置 x 12 探针 = 36 会话（每个约 30 秒）
 ```
 
-它不碰真实 `clipboard.db`，也不写真实 dconf。怎么读它的输出、哪些数能当回归判据，见
+它不碰真实 `clipboard.db`，不写真实 dconf，也不会改动维护者真实 `~/.cache` / `~/.config` 里任何东西的权限
+—— 这层隔离不是「配好环境变量就算数」：`up.sh` 会**断言**重定向后的目录不是软链，`run.sh` 在整批前后各取一次
+真实 `~/.config/copyous@local` 的校验和，变了就整批判失败。怎么读它的输出、哪些数能当回归判据，见
 [MAINTENANCE.md](MAINTENANCE.md)。
+
+设置窗是独立进程，所以 `lib/preferences/**` 是**唯一不需要注销就能验证**的面：`test/prefs/run.sh` 在 Xvfb 下
+（配 `GSETTINGS_BACKEND=memory`，任何设置写入都到不了 dconf）真建那棵 Adwaita 控件树，然后断言每个分组有标题、
+每个会改设置的行都带副标题、每个纯图标按钮都带 tooltip、同一列表里没有两行的标题与副标题完全相同。
+
+```
+./test/prefs/run.sh           # 判据：green / RED / NOT VERIFIED —— 不用注销
+```
+
+**每个有控件的设置都必须能一键回到默认。** `npm test` 里带着
+`scripts/settings-coverage.mjs`：它拿 schema 的 82 个键与 prefs 源码逐一对账，四种情况直接判红 ——
+控件没有恢复按钮、用了 schema 里不存在的键名、有恢复按钮却找不到它的控件、以及 `bind` 的键名是变量
+（这种形状它审不了，所以宁可拒绝而不是放过）。判据是最后一行 `RESULT: PASS`。
 
 ## 🆚 相对上游的改动（2.0.1）
 

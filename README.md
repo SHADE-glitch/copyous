@@ -86,9 +86,185 @@ Open the clipboard dialog with `Super` `Shift` `V`, or from the panel indicator.
 
 Open **GNOME Settings → Extensions → Copyous → Settings** to configure the database backend and location, appearance and theming, indicator and dialog behavior, notification sounds, keyboard shortcuts, tags and actions.
 
+The window has four pages: **General** (History, Feedback, Behavior, Exclusions, Dependencies, Locations), **Customization** (Profiles, Dialog, Item, Header, Items, Theme), **Shortcuts** (Dialog, Item, Item Activation, Filter Menu, Navigation, Search, Search Filters, Search Scrolling) and **Actions** (Actions, Defaults, Built-In Actions).
+
+Two things about that window are guaranteed, and both are checked by a command rather than by
+promising them here:
+
+- **Every row that changes a value explains what it changes** in its subtitle, every group has a
+  title, and every icon-only button has a tooltip -- `./test/prefs/run.sh` builds the real widget
+  tree under Xvfb and fails if a row is added without one.
+- **Every setting can be put back.** Each row owns an undo button that resets just that value; it
+  stays visible and greyed once the value is already the default. `node scripts/settings-coverage.mjs`
+  fails the build if a key loses its way back.
+
+The behaviour that the label alone does not tell you about:
+
+| Setting | What actually happens |
+|---|---|
+| Dynamic item height | This is the switch for **viewport windowing**. Off (the default here) means only the visible rows exist as actors, which is what makes a 250-item list open fast; on means every row is built and kept. The **Compact** profile sets it back on, so choosing Compact silently gives the windowing benefit away -- if the dialog feels slow again, check this first. |
+| History length | Bounds *pruning*, not display. The dialog renders every row the database holds, and pinned/tagged items are never pruned, so a longer list is what you see if you pin a lot. |
+| Paste on copy | Removed from the window on purpose: it is folded into **Swap Copy/Paste Shortcut** by the migration in `lib/common/settings.js`, which resets it. |
+| Send notifications | The image preview in a notification decodes the picture on the main thread, about **24–46 ms** per copied image (measured). One pass, not two, is already the fix; the remainder is a known cost of the feature. |
+| Wiggle indicator | Uses the shell's own shake animation; nothing to configure beyond on/off. |
+| Disable Gda warning | Silences **both** "Failed to load Gda" notifications -- the one raised when the typelib cannot be loaded and the one raised when the database itself throws. Honouring only the first (as upstream did) made the switch look like it did nothing on the path that actually fails. |
+| Ask to Install Highlight.js | The inverse of `disable-hljs-dialog`, whose only writer was the **Cancel** button of that download prompt: cancelling once used to hide the prompt for good, with no way back. Pressing it off reproduces the old behaviour; a successful install turns it back on by itself. |
+
+### Every key, with its type and default
+
+Generated from the schema, so it cannot advertise a setting that does not exist or hide one
+that does. Refresh with `node scripts/settings-reference.mjs --write`; the `npm test` suite
+checks the block is current.
+
+<!-- settings-reference:start -->
+### `(root)`
+
+| Key | Type | Default | Range / choices |
+|---|---|---|---|
+| `incognito` | boolean | `false` | — |
+| `disable-gda-warning` | boolean | `false` | — |
+| `disable-hljs-dialog` | boolean | `false` | — |
+| `in-memory-database` | boolean | `false` | — |
+| `database-backend` | enum | `'default'` | default / memory / sqlite / json |
+| `database-location` | string | `''` | — |
+| `clipboard-history` | enum | `'keep-pinned-and-tagged'` | clear / keep-pinned-and-tagged / keep-all |
+| `history-length` | integer | `50` | 10 – 500 |
+| `history-time` | integer | `0` | 0 – 1440 |
+| `remember-search` | boolean | `false` | — |
+| `exclude-pinned` | boolean | `false` | — |
+| `exclude-tagged` | boolean | `false` | — |
+| `protect-pinned` | boolean | `true` | — |
+| `protect-tagged` | boolean | `true` | — |
+| `paste-on-copy` | boolean | `true` | — |
+| `sync-primary` | boolean | `false` | — |
+| `update-date-on-copy` | boolean | `true` | — |
+| `show-indicator` | boolean | `true` | — |
+| `show-content-indicator` | boolean | `false` | — |
+| `wiggle-indicator` | boolean | `true` | — |
+| `send-notification` | boolean | `false` | — |
+| `sound` | string | `'none'` | — |
+| `volume` | double | `0.0` | -20.0 – 20.0 |
+| `wmclass-exclusions` | unknown | `[]` | — |
+| `show-at-pointer` | boolean | `false` | — |
+| `show-at-cursor` | boolean | `false` | — |
+| `clipboard-orientation` | enum | `'horizontal'` | horizontal / vertical |
+| `clipboard-position-vertical` | enum | `'top'` | top / left / center / bottom / right / fill |
+| `clipboard-position-horizontal` | enum | `'fill'` | top / left / center / bottom / right / fill |
+| `clipboard-size` | integer | `500` | 200 – 10000 |
+| `clipboard-margin-top` | integer | `6` | 0 – 10000 |
+| `clipboard-margin-right` | integer | `6` | 0 – 10000 |
+| `clipboard-margin-bottom` | integer | `6` | 0 – 10000 |
+| `clipboard-margin-left` | integer | `6` | 0 – 10000 |
+| `auto-hide-search` | boolean | `false` | — |
+| `show-scrollbar` | boolean | `true` | — |
+| `item-width` | integer | `250` | 200 – 1000 |
+| `item-height` | integer | `170` | 50 – 1000 |
+| `dynamic-item-height` | boolean | `false` | — |
+| `tab-width` | integer | `4` | 1 – 8 |
+| `show-header` | boolean | `true` | — |
+| `header-controls-visibility` | enum | `'visible'` | visible / visible-on-hover / hidden |
+| `show-item-title` | boolean | `true` | — |
+| `open-clipboard-dialog-shortcut` | unknown | `['&lt;Super&gt;&lt;Shift&gt;v']` | — |
+| `toggle-incognito-mode-shortcut` | unknown | `['&lt;Super&gt;&lt;Control&gt;&lt;Shift&gt;v']` | — |
+| `open-clipboard-dialog-behavior` | enum | `'toggle'` | toggle / open-or-select-next |
+| `pin-item-shortcut` | unknown | `['&lt;Control&gt;s']` | — |
+| `delete-item-shortcut` | unknown | `['Delete']` | — |
+| `edit-item-shortcut` | unknown | `['&lt;Control&gt;e']` | — |
+| `edit-title-shortcut` | unknown | `['&lt;Control&gt;t']` | — |
+| `open-menu-shortcut` | unknown | `['&lt;Control&gt;a']` | — |
+| `middle-click-action` | enum | `'pin'` | none / pin / delete |
+| `swap-copy-shortcut` | boolean | `false` | — |
+| `swap-scroll-shortcut` | boolean | `false` | — |
+
+### `(root).text-item`
+
+| Key | Type | Default | Range / choices |
+|---|---|---|---|
+| `show-text-info` | boolean | `false` | — |
+| `text-count-mode` | enum | `'characters'` | characters / words / lines |
+
+### `(root).code-item`
+
+| Key | Type | Default | Range / choices |
+|---|---|---|---|
+| `syntax-highlighting` | boolean | `true` | — |
+| `show-line-numbers` | boolean | `true` | — |
+| `show-code-info` | boolean | `false` | — |
+| `text-count-mode` | enum | `'characters'` | characters / words / lines |
+
+### `(root).image-item`
+
+| Key | Type | Default | Range / choices |
+|---|---|---|---|
+| `show-image-info` | boolean | `false` | — |
+| `background-size` | enum | `'cover'` | cover / contain |
+
+### `(root).file-item`
+
+| Key | Type | Default | Range / choices |
+|---|---|---|---|
+| `file-preview-visibility` | enum | `'file-preview-or-file-info'` | file-preview / file-info / file-preview-or-file-info / file-preview-and-file-info / hidden |
+| `file-preview-types` | flag set | `['text','image','thumbnail']` | — |
+| `file-preview-exclusion-patterns` | unknown | `[]` | — |
+| `background-size` | enum | `'cover'` | cover / contain |
+| `syntax-highlighting` | boolean | `true` | — |
+| `show-line-numbers` | boolean | `true` | — |
+
+### `(root).link-item`
+
+| Key | Type | Default | Range / choices |
+|---|---|---|---|
+| `show-link-preview` | boolean | `true` | — |
+| `show-link-preview-image` | boolean | `true` | — |
+| `link-preview-image-background-size` | enum | `'contain'` | cover / contain |
+| `link-preview-orientation` | enum | `'vertical'` | horizontal / vertical |
+| `link-preview-exclusion-patterns` | unknown | `[]` | — |
+
+### `(root).character-item`
+
+| Key | Type | Default | Range / choices |
+|---|---|---|---|
+| `max-characters` | integer | `1` | 1 – 4 |
+| `show-unicode` | boolean | `false` | — |
+
+### `(root).theme`
+
+| Key | Type | Default | Range / choices |
+|---|---|---|---|
+| `theme` | enum | `'default'` | default / yaru / custom |
+| `color-scheme` | enum | `'system'` | system / dark / light / high-contrast |
+| `custom-color-scheme` | enum | `'dark'` | dark / light / high-contrast |
+| `custom-bg-color` | string | `''` | — |
+| `custom-fg-color` | string | `''` | — |
+| `custom-card-bg-color` | string | `''` | — |
+| `custom-search-bg-color` | string | `''` | — |
+
+82 keys across 8 schema paths. Every key with a control has a row in the settings window, and the undo button on that row is the way back to its default (**79 of 79** controls covered -- `node scripts/settings-coverage.mjs` proves it). The subtitle under each row says what the setting changes, and that row is the only owner of that sentence. Generated by `node scripts/settings-reference.mjs --write` -- do not edit by hand.
+<!-- settings-reference:end -->
+
+## 🧯 Troubleshooting
+
+| Symptom | What it means | What to do |
+|---|---|---|
+| The extension does not appear at all | `metadata.json` declares `shell-version` `48`–`50`; a shell outside that range refuses to load it. This is deliberate -- a mismatched private-API load is worse than no extension. | `gnome-shell --version`, then see [docs/maintenance/compatibility-matrix.md](docs/maintenance/compatibility-matrix.md) |
+| History is empty after every logout | The SQLite backend goes through **libgda**. Without `gir1.2-gda-5.0` (or 6) the tracker falls back to an in-memory store, and the notification that used to say so may have been silenced. | `gsettings get org.gnome.shell.extensions.copyous database-backend` (see the note below about `GSETTINGS_SCHEMA_DIR`), or read the log line `Failed to load Gda` |
+| A change to the code does nothing | `disable` + `enable` **does not re-import** any module: GJS caches ES modules for the whole shell lifetime. | Log out and back in (or restart the session). Code under `lib/preferences/**` is the exception -- it runs in its own process, so opening the settings window again is enough |
+| The item menu is empty, or the Actions page shows an error | `~/.config/copyous@local/actions.json` parsed but had no `actions` array (hand-edited, truncated save). The extension now falls back to the built-in defaults and logs a `warn`, so nothing is permanently broken. | Delete the file and let it regenerate, or restore it from a backup |
+| Syntax highlighting is missing | `highlight.min.js` is downloaded into `~/.local/share/copyous@local/`, not installed as a package here. | **Settings → General → Dependencies** asks once; **Ask to Install Highlight.js** controls whether it asks again |
+| The input-method candidate window is offset from the text | Candidate placement follows the shell's `inputMethod` cursor signal, which only knows where the shell thinks the caret is. | Report it with the input method and language you were using -- it is a shell interaction, not a stored value |
+| One setting is stuck and you cannot find the row | The schema is **not** registered system-wide (the extension ships `schemas/gschemas.compiled` and no build step), so plain `gsettings` answers `No such schema`. | Read it: `GSETTINGS_SCHEMA_DIR=~/.local/share/gnome-shell/extensions/copyous@local/schemas gsettings describe org.gnome.shell.extensions.copyous <key>` -- that form is what was run here. Swapping `describe` for `reset` clears one value the same way, but it writes your live dconf, so it was deliberately not executed while documenting this. The row's own undo button does the same thing and cannot hit the wrong key |
+| Something looks slow and you want to know if it is us | Idle CPU cost is measured by differencing one headless shell with and without the extension, and the answer on 2026-10-09 was **below the instrument's resolution** -- so idle is not the explanation. | `./test/headless/idle-cost.sh 45 2`, then [docs/maintenance/cost-measurement.md](docs/maintenance/cost-measurement.md) for what the numbers can and cannot prove |
+| After a GNOME major upgrade, unknown state | Four independent gates, in ascending cost order. | `npm test` → `node scripts/shell-internals.mjs` → `./test/prefs/run.sh` → `./test/headless/run.sh live`, then log in once and read the journal |
+
+Where your data lives, and who can read it: history in `~/.local/share/copyous@local/clipboard.db`
+(plaintext SQLite, plus `images/`), actions in `~/.config/copyous@local/actions.json`, cache in
+`~/.cache/copyous@local/`. Since 2026-10-09 every file and directory the extension creates or
+inherits is `0600`/`0700`, corrected at every `enable()` -- see
+[docs/maintenance/database.md](docs/maintenance/database.md).
+
 ## 🧪 Testing
 
-Four modules carry no GNOME/GI imports, so they run under plain Node — no `gjs`, no dependencies, no build step:
+Four modules carry no GNOME/GI imports, so they run under plain Node — no `gjs`, no dependencies, no build step. A fifth suite guards the repository rather than the code:
 
 ```
 npm test
@@ -98,16 +274,29 @@ npm test
 - `lib/common/glob.js` → `test/glob.test.js` (anchoring, `/`-aware wildcards, globstar, character classes, brace expansion, metacharacter escaping)
 - `lib/common/settings.js` → `test/settings.test.js` (binding lifecycle, and the `paste-on-copy` migration)
 - `lib/misc/actor.js` → `test/actor.test.js` (visible-only traversal and its edges)
+- the repository itself → `test/repo.test.js` (the two-file bilingual README pair stays in step; no markdown anywhere in the tree uses task checkboxes)
 
 `lib/common/color.js` relies on `Math.clamp`, a global that GNOME Shell injects, so the color suite installs that one-line definition before building a `Color`.
 
-Everything else in `lib/` imports `gi://` and cannot run under Node — but it is not limited to manual checking either. `test/headless/` boots an isolated `gnome-shell --headless` (private dbus, `GSETTINGS_BACKEND=memory`, its own `XDG_DATA_HOME`, a synthetic DB fixture) and drives it with probes covering search semantics, lifecycle, viewport windowing and cost:
+Everything else in `lib/` imports `gi://` and cannot run under Node — but it is not limited to manual checking either. `test/headless/` boots an isolated `gnome-shell --headless` (private dbus, `GSETTINGS_BACKEND=memory`, its own `XDG_DATA_HOME`, `XDG_CACHE_HOME` and `XDG_CONFIG_HOME`, a synthetic DB fixture) and drives it with probes covering search semantics, lifecycle, viewport windowing, cost, call-site wiring, the file permissions of what gets stored and what a `disable()` leaves behind:
 
 ```
-./test/headless/run.sh all        # 3 configs x 5 probes, ~8 min
+./test/headless/run.sh all        # 3 configs x 12 probes = 36 sessions (~30s each)
 ```
 
-It never opens the real `clipboard.db` and never writes the real dconf. How to read its output, and which numbers are valid regression criteria, is in [MAINTENANCE.md](MAINTENANCE.md).
+It never opens the real `clipboard.db`, never writes the real dconf, and never changes the modes of anything under the maintainer's real `~/.cache` or `~/.config` -- `up.sh` asserts that separation and `run.sh` fails the whole batch if the real `~/.config/copyous@local` changed anyway. How to read its output, and which numbers are valid regression criteria, is in [MAINTENANCE.md](MAINTENANCE.md).
+
+The settings window is a separate process, so `lib/preferences/**` is the one surface that can be verified *without logging out*: `test/prefs/run.sh` builds the real Adwaita widget tree under Xvfb (with `GSETTINGS_BACKEND=memory`, so no setting write reaches dconf) and asserts that every group has a title, every row that changes a setting carries a subtitle, every icon-only button carries a tooltip, and no two settings in one list share a title and subtitle.
+
+```
+./test/prefs/run.sh           # green / RED / NOT VERIFIED -- no logout needed
+```
+
+Every setting the schema declares has to have a way back to its default. `npm test` runs
+`scripts/settings-coverage.mjs`, which cross-checks the 82 schema keys against the prefs sources and
+fails four ways: a control with no reset button, a key name the schema does not declare, a reset for
+a key it cannot find a control for, and a `bind` whose key is a variable -- that last shape cannot be
+audited, so it is refused rather than skipped. Verdict on the last line: `RESULT: PASS`.
 
 ## 🆚 Changes vs upstream (2.0.1)
 

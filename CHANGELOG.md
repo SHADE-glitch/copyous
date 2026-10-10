@@ -8,15 +8,22 @@ Check with `npm run check:log`. Entries are `D-###`, monotonic, never reused.
 An entry states what was true **as of its commit**, not current state: old entries are not
 re-verified, and aggregate counts live in the checker's output, never in this file.
 
-> **How these were written.** `Symptom` / `Change` are compressed from the commit subject plus the
-> state of the touched file at HEAD; the diffs were not re-read one by one. Treat an entry as an
-> index into its commit. `Evidence` names a test only where that suite was re-run in the session
-> that wrote the entry; everything else is `L?` on purpose.
+> **How these were written.** D-001..D-029 are a backfill: `Symptom` / `Change` are compressed from
+> the commit subject plus the state of the touched file at HEAD, and the diffs were not re-read one
+> by one. D-030 onward were written from the commit body and the diff of the same session, which is
+> why their `Evidence` names real runs. Treat any entry as an index into its commit. `Evidence`
+> names a test only where that suite was re-run in the session that wrote the entry; `L?` on
+> purpose where it was not.
 
-`kind` here uses five values: `fix` / `perf` / `taste` / `guard` / `revert`. `perf` is separated
+`kind` here uses six values: `fix` / `perf` / `taste` / `guard` / `revert` / `chore`. `perf` is separated
 from `fix` because most of this fork's work is resource and throughput work — dropping it
 re-introduces measurable degradation but not a correctness bug, and an upgrade needs to know which
-is which.
+is which. `chore` is the residue that owes nothing in either direction (dead code removed, a comment
+corrected, a document relocated), so it must be distinguishable from `taste` at upgrade time.
+
+The last field of a heading is the release it belongs to: `v9` is the value `metadata.json`'s
+`version` held when the entry was written. It is not a verification tier -- those are the `L0` /
+`L0b` / `L1` / `L2` prefixes inside `Evidence`.
 
 ---
 
@@ -223,3 +230,129 @@ Change   同时报告 entry 总量
 Evidence L?
 Cost     只增输出，不改行为
 Commit   a7372a4
+
+### D-030 · 2026-10-10 · fix · v9
+Symptom  落盘权限继承会话 umask：app-data 目录 0775、`clipboard.db` 与 `-wal` 0644、`images/*.png` 0664。剪贴板历史是原文存储的，唯一的遮挡是 `~/.local/share` 自己是 0700 —— 而 `database-location` 这个键恰好允许把目录搬到没有那层保护的地方
+Change   每个写盘点加 `FileCreateFlags.PRIVATE` 并在写完补一次 `GLib.chmod`（`REPLACE_DESTINATION` 会重建 inode 把模式打回 umask，`PRIVATE` 只在新建时生效），`enable()` 开头 `makeStoredPrivate()` 纠正已在盘上的残留（含 `backup/`）
+Evidence L1 `test/headless/probes/08-permissions.js`（enable 前亲手造残留再断言，不是观察）新代码 21/21；`git archive HEAD` 的副本 3/21；把 `NOFOLLOW_SYMLINKS` 弱化成 `NONE` 的副本 20/21（穿符号链接改了树外文件）
+Cost     设权限在本机只有 `GLib.chmod` 一条路（`unix::set-perms` 被本地后端拒绝，`gi://GioUnix` 不内省 chmod/mkdir，原因写在 `constants.js`）。换平台或换 API 时要重新确认这条路还在
+Commit   a93473c
+
+### D-031 · 2026-10-10 · fix · v9
+Symptom  `localeContains` 的记忆表是模块级 `const`，内层 key 是**整条未截断的剪贴板正文**；ESModule 在 shell 生命周期内不重载，于是已经删掉、已经裁剪的条目正文一直被留住
+Change   改由 `SearchEntry` 实例持有 `_matchCache`，`SearchQuery` 从构造参数拿到它（第 8 个参数，`withChange()` 负责传递）
+Evidence L1 `probes/09-cache-residue` 新代码 6/6（`entryTextsRetainedAtDisable=248`），HEAD 副本 1/6 且报错点名 "a module-level table is back"。RSS 只报数（257→254）：GJS 没有确定回收点，"没降"不等于"漏了"
+Cost     缓存随实例生死 ⇒ 重建 `SearchEntry` 会丢热缓存；把表搬回模块级不会有任何测试变红，但会重新留住用户数据
+Commit   1070951
+
+### D-032 · 2026-10-10 · chore · v9
+Symptom  `SearchEntry.addItem` 与 `ClipBoardEntryTracker.addItem` 撞名，读代码时反复跳错地方
+Change   改名 `addFilterRow`（它加的是过滤行）。原先靠一张名字表 grep 找这类撞名，那条检查本身是永久误报，已由 `probes/07-wiring` 取代
+Evidence L0 静态：改名无行为变化，`npm test` 113/113 只证明没弄坏别的
+Cost     两个方向都不欠东西；`probes/07-wiring` 才是这类撞名的检测者，它从源码推导调用对并解析到活对象，自带投毒自测
+Commit   1070951
+
+### D-033 · 2026-10-10 · fix · v9
+Symptom  `open()` 在 show 之前把 `_updateCursor` 设成 false，唯一把它设回 true 的地方是 `close()`；抢模态被拒这条分支里 `opened` 从未为真，`close()` 直接早退 ⇒ `show-at-pointer` 在整个会话里都是坏的。同一分支原先用 `logger.error`，渲染成 shell CRITICAL —— 那正是 `docs/maintenance/reading-the-log.md` 里回归闸门数的那一行
+Change   该分支补回 `_updateCursor = true`，日志降级为 `warn`（别的客户端持有 SYSTEM_MODAL 是可恢复状况），并去掉重复的 `[Copyous]` 前缀（logger 已经加过一次，旧日志实测双份）
+Evidence L1 `probes/11-grab-failure` 新代码 11/11（含"被拒后还能正常再开一次"与 modal 栈归零），HEAD 副本 10/11 且那次运行日志多出 1 条 CRITICAL
+Cost     可恢复状况一律 `logger.warn`；写回 `error` 会把一次合法事件变成修不掉的假警报
+Commit   85f29fe
+
+### D-034 · 2026-10-10 · fix · v9
+Symptom  图片通知预览把存下来的内容做 `body.substring('file://'.length)`，而存的是 `Gio.File.get_uri()` 的结果（`clipboard.js:411`），也就是 percent-encoded 文本 —— 于是尾巴被当作路径交给 GdkPixbuf，只有完全不含转义的路径能用。同文件里正确的形状本来就在旁边：`tryDecodeUri(...).substring('file://'.length)`（第 65、247 行）
+Change   改 `Gio.File.new_for_uri(body)`，与 `clipboard.js:190` 同一形状
+Evidence L0 代码读证（转义分支**没有专门的投毒**，fixture 里的图片路径都不含转义）；L1 `probes/10-notification-loopgap` 覆盖的是同一个函数，本轮 live 一臂 12 探针 151 项全绿
+Cost     通知里的图片从此按 URI 语义处理，不许再退回字符串切片
+Commit   68b0e1e
+
+### D-035 · 2026-10-10 · perf · v9
+Symptom  同一张图付两次全解码：`Pixbuf.get_file_info()` 与 `new_from_file_at_scale()` 各自打开并 inflate 整个 PNG，都在剪贴板 `owner-changed` 处理器里同步跑。两张真实截图（1728×1056 / 2419×1478）实测 18–78ms 加 17–57ms，一次图片复制让合成器停 ~86–130ms
+Change   新增 `preview()`：一趟全解码，同时得出原始尺寸与缩放后的预览
+Evidence L1 `probes/10-notification-loopgap` 实测 86ms 主循环空档；本轮三臂 36 会话 419 项复跑
+Cost     仍然是同步的，这是有意的：分块喂 `PixbufLoader` 每 64KB 只花 0.5–0.9ms 但 `close()` 里 62ms（gdk-pixbuf 的 PNG 路径在数据末尾才 inflate），`new_from_stream_at_scale_async` 同样阻塞 32–50ms。低于单次解码的代价只剩"去掉预览"或"子进程解码"，记在 `docs/maintenance/open-items.md`
+Commit   68b0e1e
+
+### D-036 · 2026-10-10 · fix · v9
+Symptom  `loadConfig()` 把 `JSON.parse` 的结果原样返回，而所有消费方紧接着做 `config.actions.map(...)`：一份**能解析但没有 `actions`** 的文件（手写、半截保存、或别的版本留下的）会让条目菜单、动作快捷键和整个 Actions 页同时失效，症状只有 2 条 `Unhandled promise rejection` —— 既不是 CRITICAL 也不是 JS ERROR，回归闸门完全看不见它。旧代码在抛异常之前已经 `_menuActions.forEach(a => a.destroy())`，于是留下一批已销毁但仍被引用的菜单项
+Change   加载边界校验 `Array.isArray(parsed.actions)`，不成立回退 `defaultConfig` 并 `logger.warn`
+Evidence L1 `probes/12-actions-config`（哨兵四条腿）新代码 8/8，去掉校验的副本 6/8（`after {} = not-an-array:undefined`）
+Cost     "能解析不等于有效"从此是本仓对所有用户可编辑落盘文件的规则，不只是这一个文件。这条缺陷是我自己的探针造成的：2026-10-09 18:02 探针 08 的 `{}` 穿过一个软链落进真实 `~/.config`，条目菜单空了 1.5 小时
+Commit   967595f
+
+### D-037 · 2026-10-10 · fix · v9
+Symptom  `disable-gda-warning` 只挡住第一条失败分支（`gi://Gda` 加载不了）；第二条 `GdaDatabase.init()` 抛异常那条无条件弹，于是用户按过 Disable Warning 之后照样被弹 —— 一个看起来无效的开关。第二条的 `logger.error` 还把 catch 到的异常丢掉，日志里只剩一句 "Failed to load Gda"
+Change   两条读同一个键、给同一个按钮；第二条补上异常对象
+Evidence L0b 文案侧 `test/prefs/run.sh` 5/5（`lib/preferences/dependencies/dependenciesSettings.js`）；L1 `probes/03` enable 全链路绿。**shell 侧行为要注销登录才生效**，本条只有代码读证
+Cost     live 配置 `database-backend='sqlite'` 而 `initSqlite()` 走的正是 `gi://Gda` —— 这条分支不是边角路径，别当次要代码改
+Commit   359774a
+
+### D-038 · 2026-10-10 · fix · v9
+Symptom  `contentInfo.js` 静态 `import Gst from 'gi://Gst'`。静态 import 一个可选 typelib 的失败形式不是"这个功能没有"，而是"扩展根本不加载"：gjs 在**模块解析期**就抛，文件里第一条语句都不执行（`gjs -m` 现场验过 —— import 后面那行 log 从未打印；同一命名空间用 `await import()` 则可以 catch）
+Change   改在 `tryCreateMediaFileInfo()` 内 `await import('gi://Gst')`，缺席就 `logger.warn` 并省略媒体时长，与 `entryTracker.js` 的 Gda 同一个形状；Gst 在位时行为不变
+Evidence guard L0 `test/shell-internals.test.js` 投毒用的是 `git archive HEAD` 的原代码：`FAIL: gi://Gst is imported statically in lib/ui/components/contentInfo.js but the shell's own install set does not guarantee it`，exit 2。**媒体时长分支本身没有任何探针覆盖**（fixture 里没有一行真能解出时长的音视频），已写进用户注销后的冒烟清单
+Cost     Gst 不在担保集合内，而集合是 `gresource list + extract libshell-18.so` 推出来的 37 个命名空间，不是我觉得哪些算常见；抓到这个原形的是担保集合那条规则，"被动态 import 过就不许再静态 import"那条抓不到（当年 Gst 只有静态、从没动态过），所以两条都必须留在 CI 里
+Commit   6ba6ade
+
+### D-039 · 2026-10-10 · fix · v9
+Symptom  三个键在 UI 里根本没有控件，其中 `disable-hljs-dialog` 原先唯一的写路径是那个询问框的 Cancel —— 按一次就永远不再问，而设置窗没有任何地方能改回来。恢复默认一侧：34 个调用点覆盖 43 个键
+Change   补控件、补 `makeResettable` 入口，到 79 个控件 / 79 个有恢复入口
+Evidence L0 `node scripts/settings-coverage.mjs` `RESULT: PASS`（82 键 / 8 条 schema 路径）；L0b `test/prefs/run.sh` 5/5
+Cost     `paste-on-copy` 是唯一没有行的键，**不是缺陷**：`migrateSettings()` 把它折进 `swap-copy-shortcut` 并 reset。值绑在子页（`Adw.NavigationPage`，没有 `add_suffix`）上的那些键，按钮必须挂在**打开该子页的那一行**上；挂到页面本身会让整棵设置窗建不起来
+Commit   978f0f8
+
+### D-040 · 2026-10-10 · fix · v9
+Symptom  设置窗第一次被仪器遍历就红：6 个分组无标题、24/83 行无副标题、28/38 个纯图标按钮无 tooltip、Theme 页两行同名同副标题；`edit-undo-symbolic` 一个图标两种语义
+Change   逐条补齐：Shortcuts 3 个分组与 Actions 2 个分组补标题（Popup Menu 改名 Filter Menu，因为那一页管的确实是筛选菜单）、24 行逐条写副标题（先读 `searchEntry.js` / `clipboardDialog.js` / `contentInfo.js` 的真实行为再落字，不凭记忆）、view-more / dialog-warning / 语言过滤按钮补 tooltip、Theme 第二行改叫 Base Color Scheme（它选的其实是自定义色回退到哪套内置色）、Database 行那个不重置任何东西的按钮改成文字按钮
+Evidence L0b `test/prefs/run.sh` 5/5（142 行 / 23 组 / 74 个图标按钮）
+Cost     副标题是"这一项改什么"的唯一主人 —— README 键表故意不写这句话。删文案等于删文档，不是删装饰
+Commit   978f0f8
+
+### D-041 · 2026-10-10 · guard · v9
+Symptom  `lib/preferences/**` 跑在独立 gjs 进程里，是 shell 侧唯一不需要注销就能验证的面，但没有任何检查会因为它红
+Change   `test/prefs/run.sh` 在 Xvfb 下注册 shell 自己的 `org.gnome.Shell.Extensions` gresource、用 `GSETTINGS_BACKEND=memory` 建出真的 `Adw.PreferencesWindow`，遍历整棵树断言四条文案不变量（分组有标题、会改值的行有副标题、纯图标按钮有 tooltip、同一列表不许两行同名同副标题），末尾报 `(user data untouched)`
+Evidence 本轮实跑 5/5 绿；第一次跑就红出 6/24/28 条缺陷，随后由 D-040 修
+Cost     三个坑写在脚本头部：`GI_TYPELIB_PATH` 必须在第一个 `gi://` 之前含 `/usr/lib/gnome-shell/girepository-1.0`；`Adw.Row` 不在 typelib 里（公开基类叫 `Adw.PreferencesRow`）；`Gio.Application` 没有 `exit(code)`，不加 `hold()/release()` + `System.exit` 的话中途抛错的脚本仍然 exit 0 —— 所以"没打印 `# N/M checks passed`"判 NOT VERIFIED 而不是通过
+Commit   5c2b286
+
+### D-042 · 2026-10-10 · guard · v9
+Symptom  headless 只有五只探针，三类失效都没有闸门：插桩本身读不到真值（探针 12 的第一版在删掉守卫的代码上报 7/7 绿）、disposed 警告（CRITICAL 闸门数不到它，实测差 12 vs 1）、探针写穿用户配置；而 `run.sh all` 每臂结果同名互相覆盖，只剩最后一臂在盘上 —— 这个套件存在的理由就是臂间对比
+Change   新增 07-wiring / 08-permissions / 09-cache-residue / 10-notification-loopgap / 11-grab-failure / 12-actions-config（共 12 只 × 3 配置 = 36 会话）；产物按 config 命名前缀；disposed 报两个量（总数 / 可归因于本扩展的数，后者 >0 即 FAIL）；跑前跑后哈希 `~/.config/copyous@local`，不同就整轮判 `USER DATA TOUCHED`；`up.sh` 也重定向 `XDG_CACHE_HOME` 与 `XDG_CONFIG_HOME`，并在建完软链农场之后**断言**这两个根不是软链，是就拒绝启动。`make-fixture.js` 补一张真图（原先 7 张全是 74 字节色块）
+Evidence 本轮 `run.sh all` 36 会话 419 项（live 151 / unwindowed 117 / horizontal 151）；归因规则在 12 条真实 foreign + 1 条本仓栈帧的构造日志上验过（输出 `14 2`）
+Cost     `~/.local/share` 故意不哈希：真实会话在那里写历史，永远会不同，比大小会把测试写成罪犯。这道道防线不是假设出来的，见 D-036 的 Cost
+Commit   d7b4f47
+
+### D-043 · 2026-10-10 · guard · v9
+Symptom  空闲 CPU 没法归因 —— 整壳 CPU% 里我们的份额看不出来，真实会话空转在几十个百分点，没有一丁点是本扩展的
+Change   `test/headless/idle-cost.sh` 对同一个进程做差分：采 `/proc/<pid>/stat` 的 `utime+stime+cutime+cstime`（`CLK_TCK=100`，1 tick = 10 ms），并且**每个测量窗口前面配一个同长度的丢弃窗口**，否则 bare-shell 读数被延迟启动工作抬高、delta 算成负的
+Evidence 本轮两次实跑：有偏的一版报 `-0.090 / -0.210 / -0.220`（仪器在说"扩展省了 CPU"），修好的一版 `+0.020 / -0.010`、均值 0.005，判据行 `NOT MEASURABLE`
+Cost     这只脚本是搭在上一笔提交里的 —— `git add test/headless` 把它扫进了 `d7b4f47`，那笔的提交信息没有描述它。单独拆出来要重写历史，本仓禁止，所以把事实记在这里。读数分辨率 10 ms，低于它的一切"空闲差异"都不许当门用
+Commit   d7b4f47
+
+### D-044 · 2026-10-10 · guard · v9
+Symptom  `makeResettable(row, settings, 'typoed-key')` 原样返回那一行：没有按钮、没有报错、没有运行时症状 —— 一个没有回头路的设置看起来完全健康
+Change   `scripts/settings-coverage.mjs` 做 schema ↔ prefs 逐键静态对账，四种红法：控件没有恢复入口、prefs 用了 schema 没声明的键、有 reset 却找不到控件、`bind` 把键名写成变量（那种形状审计看不见，所以直接拒而不是跳过）
+Evidence L0 `npm test` 113/113 含 `test/settings-coverage.test.js`；直接跑是 `RESULT: PASS`。四种红法逐条投毒过
+Cost     有一条判据**故意降级**："reset 按钮挂错行"会产 12 条假警报，因为复合行本来就能一行管多键（position 管 6 个放置键、playSound 管 sound+volume、排除项行管整个子页），原因写在注释里免得下一个人加回来。自检：解析出的键数必须等于 `<key` 出现次数，不等 exit 2 —— 这是修完"漏了 `flags=`"那个真 bug 之后加的，当时它把真实存在的 `file-preview-types` 报成幽灵键
+Commit   9b996dd
+
+### D-045 · 2026-10-10 · guard · v9
+Symptom  shell 侧对私有 API 与可选 typelib 的依赖原先靠人记住，而依赖清单一旦手抄就开始漂；D-038 是"记住"失败的实际代价
+Change   `scripts/shell-internals.mjs` 从代码推导清单（本机 52 个 shell 侧文件 / 17 个私有模块 / 46 个私有符号 / 29 个文件带私有依赖，现场推导不许手抄），三条规则：静态 import 的命名空间必须在担保集合内、被 `await import()` 过的命名空间不许再被静态 import、清单与已安装 libshell 对撞漂移
+Evidence L0 `node scripts/shell-internals.mjs` `RESULT: PASS`；`test/shell-internals.test.js` 在 `npm test` 里
+Cost     担保集合由 `gresource list + extract libshell-18.so` 推出（37 个命名空间），不是我觉得哪些算常见。没有 libshell 的机器（CI）打印 `INERT`，测试断言的就是那个词 —— 不许把沉默当通过
+Commit   9b996dd
+
+### D-046 · 2026-10-10 · guard · v9
+Symptom  README 的逐键表是手抄的，键名、默认值、范围三处各说各话时没有任何检查会发现
+Change   `scripts/settings-reference.mjs` 由 schema 渲染 82 键的表（键名 / 类型 / 默认值 / 范围或选项，按 8 条 schema 路径分组），写进两份 README 的 `settings-reference` 标记之间；`--check` 比对现渲染与文件内容
+Evidence L0 `node scripts/settings-reference.mjs --check` → `RESULT: PASS (82 keys, 8 schema paths)`；`test/settings-reference.test.js` 断言每份表的行数等于脚本报出的键数、且两份同尺寸
+Cost     表里**故意不写每项做什么**：那句话的主人是设置窗每行的副标题（见 D-040）。覆盖率数字也从 `settings-coverage.mjs` 的输出读，不手打
+Commit   9b996dd
+
+### D-047 · 2026-10-10 · guard · v9
+Symptom  `INVARIANTS.md` 这类"必须 stay wrong"的清单天生会被粘进 CHANGELOG 的句子撑成第二份副本，而维护手册拆成 `docs/maintenance/` 之后还有两种新的静默失效：没人链接的 topic 页面（等于不存在，于是同一个事实在别处被写第二遍），以及按章节号的引用（编号是老单文件的属性，现在指向虚无）
+Change   `scripts/check-log.mjs --invariants` 现场打印所有 `kind:fix` 条目（id · 日期 · Commit · Symptom），零条即失败 —— 空白的不变量清单比没有更糟，因为它看起来是通过的；`test/repo.test.js` 加三条守卫：INVARIANTS 两份不含 CHANGELOG 的逐字行且必须点名上面那条命令、每个 topic 文件被 MAINTENANCE.md 链到、除 `docs/reports/` 之外任何 `.md/.js/.mjs/.sh` 不含章节号
+Evidence L0 投毒：往 `INVARIANTS.md` 追加一行 CHANGELOG 的 `Symptom` 原文 → `not ok 1`，报错点名那一行；恢复后 5/5 绿。章节号那条第一次跑就抓到了我自己新写的页面
+Cost     禁用的字符用 `String.fromCharCode` 构造，不写死 —— 守卫把禁的东西写进自己源码里就会踩自己。`docs/reports/` 的豁免也反向验过：在日期报告里加一个编号必须仍然绿
+Commit   aeb5f2f
