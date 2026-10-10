@@ -192,7 +192,7 @@ that must not be broken, not the measurements.
 ## Docs & Commits
 - The Chinese README is the **authoritative divergence list**; the English one deliberately points at it instead of duplicating it. Do not "fix" that asymmetry.
 - **Do not touch the `Credits & Attribution` / `Changes vs upstream (2.0.1)` sections** unless the change actually affects attribution or the upstream diff.
-- Commit code first, docs in a separate commit. Commit messages use **Chinese subjects with English conventional-commit prefixes** (`fix:` / `perf:` / `test:` / `docs:` / `chore:`).
+- Commit code first, docs in a separate commit. Commit messages are **English throughout** — an English subject with an English conventional-commit prefix (`fix:` / `perf:` / `test:` / `docs:` / `chore:`).
 - Live logs: `journalctl -f -o cat /usr/bin/gnome-shell`
 
 ## Release / version
