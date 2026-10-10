@@ -191,13 +191,22 @@ for (const rel of [...files, ...prefFiles]) {
 }
 const contradicted = [...dyn.keys()].filter((n) => stat.has(n)).sort();
 
+// The prefs process has a different install set (it is plain gjs + libadwaita, and it may use
+// Gtk/Gdk), so a namespace imported *only* there must never appear in the shell-side list --
+// otherwise the printed set looks like it contradicts the "no gi://Gtk/Gdk in the shell process"
+// fact in docs/maintenance/compatibility-matrix.md, which it does not.
+const PREFS = path.join('lib', 'preferences');
+const shellSideFiles = (n) => [...(stat.get(n) ?? [])].filter((f) => !f.startsWith(PREFS));
+const staticShellSide = [...stat.keys()].filter((n) => shellSideFiles(n).length).sort();
+const staticPrefsOnly = [...stat.keys()].filter((n) => !shellSideFiles(n).length).sort();
+
 // Rule 2 -- the rule that would have caught F19 before it shipped: gi://Gst was a *static*
 // import in contentInfo.js and never dynamic, so rule 1 alone sees nothing. A shell-side
 // static import outside the guaranteed set is the same defect in its first appearance.
 // Scoped to the shell process on purpose: the prefs process has a different install set.
 const unguaranteed = [...stat.keys()]
     .filter((n) => !GUARANTEED.has(n))
-    .filter((n) => [...(stat.get(n) ?? [])].some((f) => !f.startsWith(path.join('lib', 'preferences'))))
+    .filter((n) => shellSideFiles(n).length)
     .sort();
 
 // Rule 3 -- keep the literal honest. Only possible where libshell is installed.
@@ -219,7 +228,8 @@ if (process.argv.includes('--json')) {
         symbols: rows.length,
         blessedPrefsImports: [...blessedPrefsPath.entries()].map(([m, f]) => [m, [...f].length]),
         optionalNamespaces: [...dyn.keys()].sort(),
-        staticallyImported: [...stat.keys()].sort(),
+        staticallyImported: staticShellSide,
+        staticallyImportedByPrefsOnly: staticPrefsOnly,
         contradicted,
         unguaranteed,
         libshell,
@@ -248,7 +258,8 @@ for (const n of contradicted) {
     console.log(`FAIL: gi://${n} is loaded dynamically in ${[...dyn.get(n)].join(', ')} but imported statically in ${[...stat.get(n)].join(', ')}`);
     failures.push(n);
 }
-console.log(`statically imported namespaces       : ${[...stat.keys()].sort().join(', ')}`);
+console.log(`statically imported (shell-side)     : ${staticShellSide.join(', ') || '(none)'}`);
+console.log(`statically imported (prefs process)  : ${staticPrefsOnly.join(', ') || '(none)'} -- separate install set, not judged here`);
 for (const n of unguaranteed) {
     console.log(`FAIL: gi://${n} is imported statically in ${[...stat.get(n)].filter((f) => !f.startsWith(path.join('lib', 'preferences'))).join(', ')} but the shell's own install set does not guarantee it -- a machine without that typelib cannot load the extension at all`);
     failures.push(n);

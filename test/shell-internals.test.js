@@ -55,6 +55,20 @@ describe('shell-internal dependency inventory', () => {
             `only ${counts.optionalNamespaces} seen as optional -- rule 1 has nothing to check`);
     });
 
+    // The compatibility matrix states a negative fact: no shell-side file imports Gtk/Gdk.
+    // That was only ever checkable by hand until the instrument separated the two install
+    // sets -- before that its printed static set listed Gtk and Gdk (prefs-only files), so
+    // the line appeared to contradict the very document the rule is written in.
+    it('no Gtk or Gdk on the shell side, and the prefs-only set is named', () => {
+        for (const banned of ['Gtk', 'Gdk'])
+            assert.ok(!counts.staticallyImported.includes(banned),
+                `gi://${banned} is statically imported shell-side again -- the negative fact in docs/maintenance/compatibility-matrix.md is now false`);
+        assert.deepEqual(counts.staticallyImportedByPrefsOnly.slice().sort(), ['Adw', 'Gdk', 'Gtk'],
+            'Adw/Gdk/Gtk belong to the prefs process alone; if this set changed, so did the split of install sets');
+        assert.match(text.out, /statically imported \(shell-side\)\s*:/,
+            'the report must say which install set each printed set belongs to');
+    });
+
     it('reports the guaranteed-set cross-check honestly, inert is not silent', () => {
         if (counts.libshell) {
             assert.ok(Array.isArray(counts.literalDrift),
