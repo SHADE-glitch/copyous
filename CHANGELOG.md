@@ -461,3 +461,30 @@ Change   Ran batch 2 and recorded the outcome in `docs/maintenance/verification.
 Evidence L1 batch 2, 30 runs of `06` (22 horizontal, 5 with `CO_SKIP_PHASES=scroll`; 8 live, 2 skipping scroll) — recipe `/tmp/bisect-06b.sh` + resume `-06c.sh`, data `docs/reports/batch2-result.txt`, stall snapshots `docs/reports/stall-b2-*.txt`. Incidence — horizontal scroll-in 12/17 vs skip 0/5, live scroll-in 1/6 vs skip 0/2; pooled 13/23 vs 0/7, Fisher exact two-sided p = 0.0104. The two markers per step (D-059 ②) decide the boundary: **every stall — 13/13 here plus the 6 of batch 1's 450s-timeout runs (19/19) — ends at the bare `step=i` and never prints the paired `step=i assigned value=…ms`**, so the freeze is inside the `adj().value=` re-layout, not the `sleep`. Every stall is on the loop's final step (the "scroll to the very bottom"; horizontal i=49, one sample at pass=1; live i=81). Runs 1–15 ran at the 450s stall-timeout before the batch's background task was killed at run 16; the resume finished 16–30 at 120s (`CO_PROBE_POLL=24`), which cannot reclassify a green run (green runs take ~35s)
 Cost     A record, not a fix — the hang is unchanged and stays on the open-items list. Batch 2 is not uniform in wall-clock (its second half ran at a lower stall-timeout), though the stall decision itself is timeout-independent. `check:log` stays red on the Commit line until this change is committed, because the entry cites its own commit
 Commit   c9a0f95
+
+### D-063 · 2026-10-13 · guard · v9
+Symptom  `CONVENTIONS.md` (machine-wide) asks a dimension-A repository's `AGENTS.md` to name its
+         dimension. This one pointed at `STANDARD.md` for the rules and never said which dimension
+         they were, so a reader could not tell A was a floor rather than a shared list. Nothing
+         asserted the finalized root-file layer either: `LICENSE`, the manifest, the `MAINTENANCE`
+         pair, `docs/` and `.github/workflows/` could each be deleted and the whole suite would
+         stay green
+Change   `AGENTS.md` gains one blockquote naming dimension A and pointing at `CONVENTIONS.md` (the
+         "Shared standard" block below it untouched, no rule text restated). New
+         `test/conventions.test.js`, four cases: the root-file layer present at the root, exactly
+         one manifest and it is `package.json`, no `AGENTS.zh-CN.md` (dimension B's shape), the
+         dimension pointer present with none of the standard's own section headings reproduced, and
+         the machine-wide runtime ignore list in `.gitignore` with no tracked runtime file and
+         nothing tracked under `reports/` or `docs/reports/`. Failures name the file and where it
+         goes
+Evidence L0: `npm test` **119/119** (4 from the new file); `npm run check:log` PASS. Negative run:
+         `git mv LICENSE /tmp/opencode/provoked-LICENSE`, then the suite — red with `- LICENSE:
+         create this file at the repository root`; restored, `git status --porcelain LICENSE` empty.
+         The first draft cited the standard by its numbered clauses and went **red on this
+         repository's own gate** — nothing may cite a section number, per the rule recorded in
+         `AGENTS.md` under Tests — so the prose now names the clause instead
+Cost     The `node --test test/*.test.js` glob picks the file up, so no CI change. Reads the working
+         tree, so an uncommitted file passes. Presence only, not content. No network and no read of
+         agent-standards: that repository is private and this CI cannot see it, so the rules it
+         carries are restated as assertions here
+Commit   ef0cf1f

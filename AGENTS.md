@@ -9,6 +9,9 @@ criteria, windowing gates, database discipline, the platform matrix, the current
 lives one page each under `docs/maintenance/`. One fact has one owner; this file states the rules
 that must not be broken, not the measurements.
 
+> **Dimension.** This repository is dimension **A — open source, strict** in the machine-wide
+> `CONVENTIONS.md` (outside this repository); the detail lives in `STANDARD.md`.
+>
 > **Shared standard.** Root file names, the process-draft location (`docs/reports/`), the
 > `CHANGELOG` entry format, CI version pinning and entry commands, the test entry command, and
 > the runtime ignore list are defined once in the machine-wide `STANDARD.md` (outside this
