@@ -8,7 +8,7 @@
 clipboard.json
 custom-theme.css
 
-# Machine-wide runtime ignore list (agent-standards/STANDARD.md §7): the
+# Machine-wide runtime ignore list (~/.agents/standards/STANDARD.md §4): the
 # database family is already covered above; this adds the Python tooling.
 .venv/
 venv/
