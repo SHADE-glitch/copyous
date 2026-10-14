@@ -9,20 +9,12 @@ criteria, windowing gates, database discipline, the platform matrix, the current
 lives one page each under `docs/maintenance/`. One fact has one owner; this file states the rules
 that must not be broken, not the measurements.
 
-> **Dimension.** This repository is dimension **A — open source, strict** in the machine-wide
-> `CONVENTIONS.md` (outside this repository); the shared rules live in `STANDARD.md` and the
-> dimension-A detail in `~/.agents/standards/dimensions/a.md`.
->
-> **Shared standard.** Root file names, the process-draft location (`docs/reports/`), the
-> `CHANGELOG` entry format and the runtime ignore list are defined once in the machine-wide
-> `STANDARD.md` (outside this repository); the dimension-A rules — the language policy, CI
-> version pinning and entry commands, and the test entry command — live in
-> `~/.agents/standards/dimensions/a.md`. Neither is restated here.
->
-> **Push over SSH, never HTTPS.** Verify `git remote get-url --push origin` starts with `git@`
-> before pushing; if it starts with `https://`, fix it first — never push over HTTPS.
+> **Dimension.** A — open source (strict), per `CONVENTIONS.md` (the dimensions entry page); the
+> shared rules live once in `~/.agents/standards/STANDARD.md` — root files, process drafts, the
+> changelog entry format, runtime ignores, remotes/pushing, profile listing — and the dimension-A
+> detail in `~/.agents/standards/dimensions/a.md`. Neither is restated here.
 
-## Critical Rules
+## Hard rules
 - **NEVER run `gnome-extensions install` or `gnome-extensions pack` from within this repo directory.** The install tool follows symlinks and will wipe the source directory contents.
 - **Do not load ESModules via legacy `imports`** (e.g. `imports.ui.main` throws `SyntaxError` in GNOME 45+). Use static `import` or dynamic `await import()`.
 - **Do not reassign ESModule exports directly.** Monkeypatch mutable prototypes instead.
@@ -194,7 +186,7 @@ that must not be broken, not the measurements.
 ## Known issues (recorded, not fixed)
 - `new Color(space, c1, c2, c3)` with no alpha argument leaves `alpha = NaN` (`Math.clamp(undefined, 0, 1)`), so `toString()` emits `rgb(10 20 30 / NaN)`. No current caller omits alpha, so this is latent rather than live — but any new caller must pass one.
 
-## Docs & Commits
+## Docs & commits
 - The Chinese README is the **authoritative divergence list**; the English one deliberately points at it instead of duplicating it. Do not "fix" that asymmetry.
 - **Do not touch the `Credits & Attribution` / `Changes vs upstream (2.0.1)` sections** unless the change actually affects attribution or the upstream diff.
 - Commit code first, docs in a separate commit. Commit messages are **English throughout** — an English subject with an English conventional-commit prefix (`fix:` / `perf:` / `test:` / `docs:` / `chore:`).
@@ -206,40 +198,30 @@ that must not be broken, not the measurements.
 - Bump `version-name` only when the user-facing label actually changes; it currently reads `2.0.1`, the upstream baseline this fork is frozen at, and stays there until the fork adopts its own numbering.
 
 ## Recording conventions
-- Behaviour changes land in `CHANGELOG.md` as `D-###` entries; ids are monotonic and **never
-  reused**, so a gap means an entry was deleted — `check:log` treats that as a failure, not a cleanup.
-- `kind` ∈ `fix` | `perf` | `taste` | `guard` | `revert` | `chore`, cut by **who may demand a revert**:
-  dropping it makes a bug → `fix`; dropping it only re-introduces measurable degradation → `perf`;
-  dropping it merely makes me less happy → `taste` (zero obligation, discardable wholesale on an
-  upgrade); it changes no behaviour and only detects drift → `guard`; it withdraws earlier work →
-  `revert`; it is cleanup owed nothing either way → `chore`. A commit that is two things at once
-  becomes two entries citing the same hash — done so
-  here for `0c463b2` (D-010 perf / D-011 fix) and `f0761fe` (D-014 fix / D-015 guard).
+
+Common CHANGELOG rules: the changelog-format section of `~/.agents/standards/STANDARD.md`.
+
+- Behaviour changes land in `CHANGELOG.md` as `D-###` entries; `check:log` treats a gap as a
+  failure, not a cleanup.
+- A commit that is two things at once becomes two entries citing the same hash — done so here for
+  `0c463b2` (D-010 perf / D-011 fix) and `f0761fe` (D-014 fix / D-015 guard).
 - `CHANGELOG.md` is a machine-checked **index**, not a second divergence list. The curated
   narrative stays in `README.zh-CN.md` (single authoritative copy); neither file restates the other.
 - An entry is an assertion **as of its commit**, not current state: never re-verify an old entry,
   never hand-copy an aggregate count into it — `check:log` and `git rev-list --count` print them.
 - Known-but-not-fixed issues do **not** go in `CHANGELOG.md` (they have no commit). They live in
   "Known issues (recorded, not fixed)" above, `docs/maintenance/open-items.md` and the README's deliberately-unfixed ledger.
-- `Symptom` names the mechanism, never the session: this extension holds the user's clipboard, so
-  no copied text, file path, URL or application name from a real desktop may appear. `D-012` is the
-  reason to be strict — untrusted user content already reaches the database layer.
-- A window containing zero entries is a failure, not a pass.
+- This extension holds the user's clipboard, so no copied text, file path, URL or application name
+  from a real desktop may appear. `D-012` is the reason to be strict — untrusted user content
+  already reaches the database layer.
+- Run `npm run check:log` before committing docs (bare `node scripts/check-log.mjs` works too).
 - Run `npm run check:log` before committing docs (bare `node scripts/check-log.mjs` works too).
 
 ## Listed on the GitHub profile
 
-This repo is listed on the owner's profile front page (`SHADE-glitch/SHADE-glitch`). That page lives
-in a **separate repository and never updates itself** — when a fact it states about this repo
-changes, update the profile README in the same round. The profile's own `AGENTS.md` is the
-authoritative rulebook; its guard `scripts/check-profile.mjs` must keep passing.
+See the profile-listing section of `~/.agents/standards/STANDARD.md`. This repo's own additions:
 
-- **Rename / transfer / delete** — the profile link dies; fix the row.
 - **Purpose drift / upstream identity** — the profile's one-line description and its "a fork of
   Copyous" wording must still be true.
-- **LICENSE change** — the profile's license badge must equal this repo's `LICENSE`.
 - **GNOME target change** — the `GNOME Shell` badge must equal `metadata.json`'s `shell-version`
   (the profile currently says `48–50`).
-- **Freeze / archive / upstream-frozen** — say so on the profile; never leave a stale "maintained".
-- **Public ↔ private** — a repo that goes private must be **delisted** (only the two whitelisted
-  private apps may stay, and they are not this one).
