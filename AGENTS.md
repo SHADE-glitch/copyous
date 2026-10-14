@@ -3,16 +3,16 @@
 Guidance for agents working inside `copyous@local` — a local maintenance fork of
 Copyous (baseline 2.0.1), published as `SHADE-glitch/copyous`.
 
+> **Dimension.** A — open source (strict), per `CONVENTIONS.md` (the dimensions entry page); the
+> shared rules live once in `~/.agents/standards/STANDARD.md` — root files, process drafts, the
+> changelog entry format, runtime ignores, remotes/pushing, profile listing — and the dimension-A
+> detail in `~/.agents/standards/dimensions/a.md`. Neither is restated here.
+
 Before debugging anything measured, look up the page in [MAINTENANCE.md](MAINTENANCE.md)'s
 "question → file" table: it is a router, and the operational knowledge (log reading, regression
 criteria, windowing gates, database discipline, the platform matrix, the current baseline numbers)
 lives one page each under `docs/maintenance/`. One fact has one owner; this file states the rules
 that must not be broken, not the measurements.
-
-> **Dimension.** A — open source (strict), per `CONVENTIONS.md` (the dimensions entry page); the
-> shared rules live once in `~/.agents/standards/STANDARD.md` — root files, process drafts, the
-> changelog entry format, runtime ignores, remotes/pushing, profile listing — and the dimension-A
-> detail in `~/.agents/standards/dimensions/a.md`. Neither is restated here.
 
 ## Hard rules
 - **NEVER run `gnome-extensions install` or `gnome-extensions pack` from within this repo directory.** The install tool follows symlinks and will wipe the source directory contents.
