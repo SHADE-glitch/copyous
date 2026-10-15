@@ -9,6 +9,14 @@ A modern clipboard manager for GNOME.
 ![Based on: Copyous](https://img.shields.io/badge/based%20on-Copyous-orange)
 [![Repository](https://img.shields.io/badge/repository-GitHub-black?logo=github)](https://github.com/SHADE-glitch/copyous)
 
+**What it is** — A modern clipboard manager for GNOME: history for text, code, images, files, links, colors and QR codes, with search, pinning, tags and custom actions.
+
+**What it solves** — It preserves the upstream feature set while tightening correctness, security, performance and resource management — parameterised SQLite queries, a tuned database and no enable/disable leaks.
+
+**How to run** — Clone into `~/.local/share/gnome-shell/extensions/copyous@local`, then `gnome-extensions enable copyous@local` (log out and back in on Wayland).
+
+**Where to look** — See [AGENTS.md](AGENTS.md) and [MAINTENANCE.md](MAINTENANCE.md).
+
 ## 📖 About
 
 This repository is a **personal maintenance fork** of [**Copyous**](https://github.com/boerdereinar/copyous) by **boerdereinar**, frozen at upstream **2.0.1** and maintained locally under the UUID `copyous@local`.

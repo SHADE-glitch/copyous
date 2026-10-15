@@ -9,6 +9,14 @@
 ![Based on: Copyous](https://img.shields.io/badge/based%20on-Copyous-orange)
 [![Repository](https://img.shields.io/badge/repository-GitHub-black?logo=github)](https://github.com/SHADE-glitch/copyous)
 
+**是什么** — 面向 GNOME 的现代剪贴板管理器：文本、代码、图片、文件、链接、颜色与二维码的历史，支持搜索、置顶、标签与自定义动作。
+
+**解决什么** — 完整保留上游功能，同时提升正确性、安全性、性能与资源管理——SQLite 查询参数化、数据库调优、消除启用/禁用泄漏。
+
+**怎么跑** — 克隆到 `~/.local/share/gnome-shell/extensions/copyous@local`，再 `gnome-extensions enable copyous@local`（Wayland 下需注销重登）。
+
+**去哪看** — 见 [AGENTS.md](AGENTS.md) 与 [MAINTENANCE.md](MAINTENANCE.md)。
+
 ## 📖 项目说明
 
 本仓库是 **boerdereinar** 的 [**Copyous**](https://github.com/boerdereinar/copyous) 的**个人维护分支**，冻结在上游 **2.0.1** 版本，以 `copyous@local` 为 UUID 在本地维护。
