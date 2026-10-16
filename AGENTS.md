@@ -7,6 +7,11 @@ Copyous (baseline 2.0.1), published as `SHADE-glitch/copyous`.
 > shared rules live once in `~/.agents/standards/STANDARD.md` — root files, process drafts, the
 > changelog entry format, runtime ignores, remotes/pushing, profile listing — and the dimension-A
 > detail in `~/.agents/standards/dimensions/a.md`. Neither is restated here.
+>
+> **Read these before the first edit** (bare `@` imports — CodeBuddy expands them; opencode reads
+> the same two from `opencode.json`):
+> @~/.agents/standards/STANDARD.md
+> @~/.agents/standards/dimensions/a.md
 
 Before debugging anything measured, look up the page in [MAINTENANCE.md](MAINTENANCE.md)'s
 "question → file" table: it is a router, and the operational knowledge (log reading, regression
