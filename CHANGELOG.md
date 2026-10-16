@@ -488,3 +488,15 @@ Cost     The `node --test test/*.test.js` glob picks the file up, so no CI chang
          agent-standards: that repository is private and this CI cannot see it, so the rules it
          carries are restated as assertions here
 Commit   ef0cf1f
+
+### D-064 · 2026-10-16 · chore · v9
+Symptom  The pointer in AGENTS.md is followed only by an agent that chooses to; nothing made the
+         standard reach the context, and the section list had drifted — §5 (the conflict rule) was
+         missing.
+Change   End the pointer block with two bare `@` imports (`@~/.agents/standards/STANDARD.md`,
+         `@~/.agents/standards/dimensions/a.md`) and add `opencode.json` naming the same two files in
+         its `instructions` array; add `§5 conflict rule`. Local overlay only — no upstream file moved.
+Evidence 2026-10-16: CodeBuddy CLI with every tool disabled printed the tokens the imports carried;
+         opencode `run` printed the token its `instructions` named, with no tool call.
+Cost     Both hooks name `~/.agents`, absent in another clone, so they are skipped there.
+Commit   c72b446
