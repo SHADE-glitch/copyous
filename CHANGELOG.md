@@ -491,12 +491,26 @@ Commit   ef0cf1f
 
 ### D-064 · 2026-10-16 · chore · v9
 Symptom  The pointer in AGENTS.md is followed only by an agent that chooses to; nothing made the
-         standard reach the context, and the section list had drifted — §5 (the conflict rule) was
+         standard reach the context, and the section list had drifted — the conflict rule was
          missing.
 Change   End the pointer block with two bare `@` imports (`@~/.agents/standards/STANDARD.md`,
          `@~/.agents/standards/dimensions/a.md`) and add `opencode.json` naming the same two files in
-         its `instructions` array; add `§5 conflict rule`. Local overlay only — no upstream file moved.
+         its `instructions` array; add the conflict rule to the section list. Local overlay only — no
+         upstream file moved.
 Evidence 2026-10-16: CodeBuddy CLI with every tool disabled printed the tokens the imports carried;
          opencode `run` printed the token its `instructions` named, with no tool call.
 Cost     Both hooks name `~/.agents`, absent in another clone, so they are skipped there.
 Commit   c72b446
+
+### D-065 · 2026-10-16 · chore · v9
+Symptom  Three fork-added comment blocks in the local overlay were written in Chinese —
+         `clipboardDialog.js`'s [R1] and [K1], `clipboardScrollContainer.js`'s [Q1]. Dimension A
+         reserves Chinese for the README / MAINTENANCE pairs, so they were a language-policy
+         violation in a repository whose own AGENTS.md commits to English throughout.
+Change   Translate each block to English in place, keeping the ids and the surrounding code
+         untouched; no upstream file structure was changed.
+Evidence L0 2026-10-16 `npm test` 119/119 and `npm run check:log` PASS.
+Cost     Comment-only, no behaviour change. The same round also deduped a repeated `check:log` line
+         in AGENTS.md and dropped a stray section number from D-064 — both doc-only, so they carry
+         no separate entry.
+Commit   a8d625e

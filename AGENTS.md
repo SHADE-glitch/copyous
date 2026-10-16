@@ -220,7 +220,6 @@ Common CHANGELOG rules: the changelog-format section of `~/.agents/standards/STA
   from a real desktop may appear. `D-012` is the reason to be strict — untrusted user content
   already reaches the database layer.
 - Run `npm run check:log` before committing docs (bare `node scripts/check-log.mjs` works too).
-- Run `npm run check:log` before committing docs (bare `node scripts/check-log.mjs` works too).
 
 ## Listed on the GitHub profile
 
