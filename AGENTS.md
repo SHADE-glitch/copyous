@@ -5,8 +5,8 @@ Copyous (baseline 2.0.1), published as `SHADE-glitch/copyous`.
 
 > **Dimension.** A — open source (strict), per `CONVENTIONS.md` (the dimensions entry page); the
 > shared rules live once in `~/.agents/standards/STANDARD.md` — root files, process drafts, the
-> changelog entry format, runtime ignores, remotes/pushing, profile listing — and the dimension-A
-> detail in `~/.agents/standards/dimensions/a.md`. Neither is restated here.
+> changelog entry format, runtime ignores, the conflict rule, remotes/pushing, profile listing — and
+> the dimension-A detail in `~/.agents/standards/dimensions/a.md`. Neither is restated here.
 >
 > **Read these before the first edit** (bare `@` imports — CodeBuddy expands them; opencode reads
 > the same two from `opencode.json`):
