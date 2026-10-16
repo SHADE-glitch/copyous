@@ -514,3 +514,17 @@ Cost     Comment-only, no behaviour change. The same round also deduped a repeat
          in AGENTS.md and dropped a stray section number from D-064 — both doc-only, so they carry
          no separate entry.
 Commit   a8d625e
+
+### D-066 · 2026-10-16 · fix · v9
+Symptom  The AGENTS.md pointer block enumerates what lives in STANDARD.md, but its list omitted the
+         conflict rule — the clause that keeps a repository's own stricter rules from being
+         "unified" away. D-064's Change recorded adding the conflict rule to that list, yet the
+         addition never landed: the enumerated list stayed one entry short. This repository names
+         sections rather than citing them by number, so a missing name is caught by no guard.
+Change   Add the conflict rule to the pointer block's section list by name, in its place in the
+         list. No section number is cited — this repository forbids them outside `docs/reports/`.
+         D-064 is left exactly as written: an entry asserts as of its commit and is never edited.
+Evidence L0 2026-10-16 `npm test` 119/119 and `npm run check:log` PASS.
+Cost     Doc-only, no behaviour change; the pointer block now names every section of the standard
+         it points at.
+Commit   988d0e8
