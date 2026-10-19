@@ -169,7 +169,7 @@ that must not be broken, not the measurements.
 - Test files carry `SPDX-License-Identifier: GPL-3.0-or-later` (the repo licence — note this differs from the `macos-dock@local` sibling, which is GPL-2.0-or-later).
 
 ## CI
-- `.github/workflows/ci.yml` runs on every `push` and `pull_request` (`ubuntu-latest`, Node 20). It runs exactly two commands, in order: `npm test` then `npm run check:log`.
+- `.github/workflows/ci.yml` runs on every `push` and `pull_request` (`ubuntu-latest`, Node 20). It runs two gate commands, in order — `npm test` then `npm run check:log` — plus a non-gating `npm run test:coverage` read.
 - Both must stay **green**. There is no build step and no dependency install — a failure means a broken test or a broken record, never a flaky toolchain.
 - The checkout must fetch **full history** (`fetch-depth: 0`): `check:log` walks `git log <anchor>..HEAD` back to the coverage anchor, which a default shallow clone cannot resolve.
 - Action versions are pinned (`actions/checkout@v4`, `actions/setup-node@v4`); bump them deliberately, not as drive-by churn.
