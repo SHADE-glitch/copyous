@@ -528,3 +528,12 @@ Evidence L0 2026-10-16 `npm test` 119/119 and `npm run check:log` PASS.
 Cost     Doc-only, no behaviour change; the pointer block now names every section of the standard
          it points at.
 Commit   988d0e8
+
+### D-067 · 2026-10-19 · chore
+
+Symptom  AGENTS.md said CI "runs exactly two commands", but ci.yml has a third
+         npm run test:coverage step that cannot fail the run.
+Change   The sentence now names two gates plus the non-gating coverage read.
+Evidence 2026-10-19: .github/workflows/ci.yml has three run: steps.
+Cost     None; wording only.
+Commit   84d2fab
