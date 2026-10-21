@@ -38,6 +38,12 @@
 	co.metric('materialized', cont._items.size);
 	co.chk('residentSetBelowList', cont._items.size < cont._filtered.length);
 
+	// This is the session's first open, and the only one where page_size is still 0 when
+	// the initial focus scrolls. Centring on an unallocated viewport put the list half an
+	// item past the top, which clipped the first row until the next open.
+	co.metric('firstOpenValue', Math.round(adj().value));
+	co.chk('firstOpenStartsAtTop', Math.round(adj().value) === 0);
+
 	// ---- extent A/B: the scroll range must not depend on how many actors exist ----
 	const windowed = { upper: Math.round(adj().upper), materialized: cont._items.size };
 	cont._materialized = () => ({ list: cont._entries, lo: 0, hi: cont._entries.length });
