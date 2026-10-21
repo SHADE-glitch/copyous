@@ -537,3 +537,17 @@ Change   The sentence now names two gates plus the non-gating coverage read.
 Evidence 2026-10-19: .github/workflows/ci.yml has three run: steps.
 Cost     None; wording only.
 Commit   84d2fab
+
+### D-068 · 2026-10-21 · fix · v9
+Symptom  The first open after login was already scrolled about half a row down, so the first entry
+         was clipped at the top; every later open was correct.
+Change   Align to the entry's start instead of centring on the viewport while `page_size` is still
+         0 -- `_scrollToIndex()` and `scrollToChild()`, the two paths that can run before the scroll
+         view has allocated. Probe 04 now asserts the session's first open starts at value 0.
+Evidence L0 2026-10-21 probe 04 on the `live` config: FAIL 27/28 `firstOpenValue=91` before the
+         fix, PASS 28/28 `firstOpenValue=0` after; `horizontal` PASS. `npm test` 119/119;
+         `npm run check:log` PASS.
+Cost     Only the pre-allocation case changes: a focus that arrives before the scroll view has
+         allocated now aligns the entry's start rather than its centre. With a known viewport the
+         arithmetic is unchanged, so a mid-list focus still centres.
+Commit   47af303
