@@ -551,3 +551,40 @@ Cost     Only the pre-allocation case changes: a focus that arrives before the s
          allocated now aligns the entry's start rather than its centre. With a known viewport the
          arithmetic is unchanged, so a mid-list focus still centres.
 Commit   47af303
+
+### D-069 · 2026-10-27 · fix · v9
+Symptom  `ClipboardManager`'s constructor built a `Keyboard` during `enable()` — that is, during
+         login — and that constructor reaches `Clutter.get_default_backend().get_default_seat()`
+         and `Main.inputMethod`. When either was not ready the extension failed to load; and
+         because `keyboard` stayed undefined while `destroy()` called `keyboard.destroy()`,
+         `disable()` threw as well and left the selection handler and the paste timer behind.
+Change   Build the keyboard on the first paste (`this.keyboard ??= new Keyboard()`), guard the
+         `destroy()` call sites, and wrap the `disconnectObject` in `Keyboard.destroy()`. This is
+         the shape upstream settled on for #156.
+Evidence L? No test reaches this module — it imports `gi://` and the suite covers only GI-free
+         files. `node --check` on both files; `npm test` 119/119.
+Cost     The first paste of a session pays the device creation (about a millisecond). The
+         terminal/Insert key sequence and the 250 ms delay are untouched.
+Commit   fe0534f
+
+### D-070 · 2026-10-27 · fix · v9
+Symptom  The dialog handed the original file to St as a CSS `background-image`. Above
+         `GL_MAX_TEXTURE_SIZE` (16384px on most GPUs) the texture cache fails to load it and takes
+         gnome-shell down with it, which a full-page browser screenshot reaches easily.
+Change   `getSafePreviewFile()`: above 4096px on either edge, write a 1024px copy under
+         `<cache>/previews/`, keyed by the source URI, and use that; below the limit the original is
+         used unchanged. If the downscale itself fails the preview is skipped instead of falling
+         back to the original. Mirrors upstream #162.
+Evidence L? Same reason — `gi://` imports. `node --check`; `npm test` 119/119.
+Cost     One synchronous decode per oversized file, once, because the copy is reused afterwards.
+         Files under the limit take the old path with no extra IO.
+Commit   3c7828b
+
+### D-071 · 2026-10-27 · fix · v9
+Symptom  `play_simple` blocks the caller until the audio backend accepts the request, and the call
+         sits on the shell's main loop, so a backend that was asleep froze the desktop.
+Change   Build the attribute map once and call `play_full` with a finish callback that swallows
+         playback errors. Volume and both attribute keys are unchanged. Mirrors upstream #186.
+Evidence L? Same reason — `gi://` imports. `node --check`; `npm test` 119/119.
+Cost     None: the request is issued on the same thread, just without waiting for the backend.
+Commit   bd6c940
