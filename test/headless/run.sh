@@ -130,16 +130,35 @@ eval(imports.byteArray.toString(GLib.file_get_contents('$OUT/$config-$name.eval.
 	# One knob so the stall instrumentation can be exercised in seconds rather than by waiting
 	# out a real 450s timeout: CO_PROBE_POLL counts the 5-second ticks.
 	poll=${CO_PROBE_POLL:-90}
+	# A wedged shell cannot report its own freeze -- the main loop is exactly what stopped -- so
+	# ask it something instead. Eval answering means the loop still iterates, however far over
+	# budget the phase is; two consecutive misses mean the main thread has been inside one
+	# synchronous call for >6s, which is a block or a deadlock and never a slow phase. Stopping
+	# here turns the observed 450s waste into ~10s and keeps the phase marker that named it.
+	# gdb cannot help: yama ptrace_scope=1 only permits tracing descendants, so the kernel wchan
+	# in the snapshot is the deepest evidence this machine can produce.
+	wedged=0
 	while [ ! -s "$result" ] && [ $i -lt "$poll" ]; do
 		sleep 5
 		i=$((i + 1))
+		if timeout 3 gdbus call --session --dest org.gnome.Shell --object-path /org/gnome/Shell \
+			--method org.gnome.Shell.Eval '1+1' >/dev/null 2>&1; then
+			wedged=0
+		else
+			wedged=$((wedged + 1))
+			[ $wedged -ge 2 ] && break
+		fi
 	done
 	cp "$OUT/shell.log" "$OUT/$config-$name.shell.log" 2>/dev/null
 	if [ -s "$result" ]; then
 		node "$HARNESS/verdict.js" "$result" "$name"
 	else
-		echo "     TIMEOUT after $((poll * 5))s"
-		snapshot_stall "$config" "$name" "$poll"
+		if [ $wedged -ge 2 ]; then
+			echo "     WEDGED after $((i * 5))s -- the shell stopped answering Eval, so its main loop is blocked"
+		else
+			echo "     TIMEOUT after $((i * 5))s"
+		fi
+		snapshot_stall "$config" "$name" "$i"
 		return 1
 	fi
 }

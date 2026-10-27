@@ -588,3 +588,21 @@ Change   Build the attribute map once and call `play_full` with a finish callbac
 Evidence L? Same reason — `gi://` imports. `node --check`; `npm test` 119/119.
 Cost     None: the request is issued on the same thread, just without waiting for the backend.
 Commit   bd6c940
+
+### D-072 · 2026-10-27 · fix
+
+Symptom  Every image wider or taller than 4096px got a downscaled copy in
+         `~/.cache/copyous/previews/`, keyed by source URI. Nothing ever removed one: the file
+         belongs to no row, so destroying the preview that used it left it on disk, and the
+         directory grew by a few hundred KB per oversized image ever viewed.
+Change   `prunePreviewCache()` runs when a new preview is about to be written -- the only moment
+         the directory can grow -- and deletes entries whose mtime is older than 30 days. A miss
+         costs one re-decode of an image that was going to be decoded anyway.
+Evidence L0: `npm test` 119/119, `npm run check:log` PASS. L1: the function was run under gjs
+         against a temp directory holding one PNG backdated 40 days, one fresh PNG and one
+         non-PNG: the stale file was deleted, the other two kept, and a second pass was a no-op.
+Cost     One synchronous directory read per oversized image, on a path that already does a
+         synchronous decode and PNG save. Nothing runs while the cache is idle, so a directory
+         that stops receiving new previews keeps whatever it holds.
+Commit   abf0a3a
+

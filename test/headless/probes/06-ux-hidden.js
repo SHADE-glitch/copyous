@@ -116,7 +116,9 @@
 					steps++;
 					// The paired marker after the assignment, and before the sleep: whether the
 					// freeze is inside relayout or inside `co.sleep` are two different bugs, and the
-					// first stall was silent about which.
+					// first stall was silent about which. Both have since been seen, so the marker at the
+					// end of each pass covers the remaining gap: a freeze between the last step's sleep
+					// returning and the next pass's first step.
 					print(`[copyous-probe] scroll pass=${pass} step=${i} assigned value=${Math.round(
 						co.ms() - t,
 					)}ms`);
@@ -126,6 +128,9 @@
 					}
 					await co.sleep(40);
 				}
+				print(
+					`[copyous-probe] scroll pass=${pass} done steps=${steps} at=${Math.round(co.ms() - t0)}ms`,
+				);
 				passes.push({
 					pass,
 					steps,
