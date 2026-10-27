@@ -227,5 +227,8 @@ See the profile-listing section of `~/.agents/standards/STANDARD.md`. This repo'
 
 - **Purpose drift / upstream identity** — the profile's one-line description and its "a fork of
   Copyous" wording must still be true.
+- **Frozen status in the GitHub description** — the repository's About text must carry
+  `· frozen at upstream 2.0.1`, in step with the README's frozen marker and the profile row; change
+  them together.
 - **GNOME target change** — the `GNOME Shell` badge must equal `metadata.json`'s `shell-version`
   (the profile currently says `48–50`).
