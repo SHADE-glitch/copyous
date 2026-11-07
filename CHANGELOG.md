@@ -640,3 +640,16 @@ Evidence L0: `npm test` 119/119 and `test/prefs/run.sh` 5/5 (the window still bu
 Cost     The first group of the page is now a destructive action. It is confirmed before it acts,
          and the group is titled "Defaults".
 Commit   38d8faf
+
+### D-075 · 2026-11-07 · taste
+Symptom   The README pair had no table of contents, and its troubleshooting section was named with a
+          different emoji from the one the sibling forks use — the same step filed under three headings
+          across four forks.
+Change    Both sides open with a generated table of contents under the four-part lead, Troubleshooting
+          takes the family spelling, and the section order follows the forks' common shape: About ·
+          Features · Prerequisites · Installation · Usage · Preferences · Testing · Troubleshooting ·
+          Changes vs upstream · Contributing · Credits & Attribution · License.
+Evidence  L0 2026-11-07 `npm test` green and `npm run check:log` PASS; `audit-layout.sh` reports this
+          repository compliant.
+Cost      One heading and one anchor change; no committed document cited the old spelling.
+Commit    4774798
