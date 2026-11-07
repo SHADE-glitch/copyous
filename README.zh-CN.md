@@ -25,6 +25,23 @@
 
 **去哪看** — 见 [AGENTS.md](AGENTS.md) 与 [MAINTENANCE.md](MAINTENANCE.md)。
 
+---
+
+## 📖 目录
+
+- [📖 项目说明](#-项目说明)
+- [✨ 功能特性](#-功能特性)
+- [🧰 前置依赖](#-前置依赖)
+- [📥 安装](#-安装)
+- [🖱️ 使用](#️-使用)
+- [⚙️ 偏好设置](#️-偏好设置)
+- [🧪 测试](#-测试)
+- [🆚 相对上游的改动（2.0.1）](#-相对上游的改动201)
+- [🛠️ 故障排查](#️-故障排查)
+- [🤝 参与贡献](#-参与贡献)
+- [🙏 致谢与来源说明](#-致谢与来源说明)
+- [⚖️ 许可证](#️-许可证)
+
 ## 📖 项目说明
 
 本仓库是 **boerdereinar** 的 [**Copyous**](https://github.com/boerdereinar/copyous) 的**个人维护分支**，冻结在上游 **2.0.1** 版本，以 `copyous@local` 为 UUID 在本地维护。
@@ -256,25 +273,6 @@ rm -rf ~/.local/share/gnome-shell/extensions/copyous@local
 共 **82** 个键，分布在 **8** 条 schema 路径。每个有控件的键在设置窗里都对应一行，行右侧的 undo 按钮把它送回默认值（**79 of 79** 个控件覆盖，由 `node scripts/settings-coverage.mjs` 把关）；每一行的副标题写明它改什么，那是这些说明唯一的主人。本表由 `node scripts/settings-reference.mjs --write` 生成，不要手改。
 <!-- settings-reference:end -->
 
-## 🧯 故障排查
-
-| 现象 | 说明什么 | 怎么办 |
-|---|---|---|
-| 扩展根本不出现 | `metadata.json` 声明 `shell-version` 为 `48`–`50`，超出范围的 shell 直接不加载。这是有意的 —— 私有 API 半死不活地跑，比不加载更糟。 | 先看 `gnome-shell --version`，再看 [docs/maintenance/compatibility-matrix.md](docs/maintenance/compatibility-matrix.md) |
-| 每次注销后历史都空 | SQLite 后端走的是 **libgda**。没有 `gir1.2-gda-5.0`（或 6）时，历史退回纯内存存储，而本该提示你的那条通知可能已经被自己关掉了。 | `gsettings get org.gnome.shell.extensions.copyous database-backend`（关于 `GSETTINGS_SCHEMA_DIR` 见下面一条），或读日志里的 `Failed to load Gda` |
-| 改了代码毫无效果 | `disable` + `enable` **不会重新 import** 任何模块：GJS 在整个 shell 生命周期里缓存 ESModule。 | 注销再登录。`lib/preferences/**` 是唯一例外 —— 它跑在独立进程里，重开设置窗就够了 |
-| 条目菜单是空的，或动作页变成错误页 | `~/.config/copyous@local/actions.json` 能解析但**没有 `actions` 数组**（手写、保存了一半）。现在会回落到内置默认动作并记一条 `warn`，不会永久坏掉。 | 删掉这个文件让它重新生成，或从备份恢复 |
-| 代码不高亮 | 本机 `highlight.min.js` 不是系统包，是下载进 `~/.local/share/copyous@local/` 的。 | **设置 → 常规 → 依赖** 会问一次；**询问安装 Highlight.js** 控制以后还问不问 |
-| 输入法候选窗和文字位置对不上 | 候选窗位置跟着 shell 的 `inputMethod` 光标信号走，而 shell 只知道它自己认为的光标在哪。 | 带上你用的输入法与语言反馈 —— 这是与 shell 的交互问题，不是一个存储值 |
-| 某项设置卡住了，又找不到那一行 | schema **没有装进系统目录**（扩展自带 `schemas/gschemas.compiled`，无构建步骤），所以裸的 `gsettings` 只会回 `No such schema`。 | 读：`GSETTINGS_SCHEMA_DIR=~/.local/share/gnome-shell/extensions/copyous@local/schemas gsettings describe org.gnome.shell.extensions.copyous <键名>` —— 写这条文档时实跑的是这一条。把 `describe` 换成 `reset` 就能同样地清掉一个值，但它会写你真实的 dconf，所以这里**故意没有执行**。行右侧的 undo 按钮做的是同一件事，而且不可能点错键 |
-| 觉得慢，想知道是不是我们的锅 | 空闲 CPU 是靠**同一个 headless shell 开/关扩展做差分**测的，2026-10-09 的结论是**低于仪器分辨率** —— 所以"空转费电"解释不了卡顿。 | `./test/headless/idle-cost.sh 45 2`，然后看 [docs/maintenance/cost-measurement.md](docs/maintenance/cost-measurement.md) 里这些数能证明什么、不能证明什么 |
-| GNOME 大版本升级之后，状态未知 | 四道互相独立的闸门，按代价从低到高。 | `npm test` → `node scripts/shell-internals.mjs` → `./test/prefs/run.sh` → `./test/headless/run.sh live`，再注销登录一次读 journal |
-
-数据在哪、谁能读：历史在 `~/.local/share/copyous@local/clipboard.db`（明文 SQLite）加上 `images/`，
-动作在 `~/.config/copyous@local/actions.json`，缓存在 `~/.cache/copyous@local/`。自 2026-10-09 起，
-扩展新建或继承的每个目录/文件都是 `0700`/`0600`，并在每次 `enable()` 时纠正已在盘上的残留 ——
-详见 [docs/maintenance/database.md](docs/maintenance/database.md)。
-
 ## 🧪 测试
 
 四个模块不含 GNOME/GI 导入，因此可用纯 Node 运行 —— 无需 `gjs`、无依赖、无构建步骤；第五个套件守的是仓库本身而不是代码：
@@ -415,6 +413,25 @@ npm test
 - **`dynamic-item-height` 就是窗口化的实际开关，且 "Compact" 预设会静默关掉它**：`profiles.js` 里 `CompactProfile` 把它设回 `true`（竖向 + 动态高度 = 不窗口化），`DefaultProfile` 是 `false`。所以点了 Compact 之后所有窗口化收益会无声消失——排查"怎么又卡了"先看这个 key。
 - **`lib/misc/actor.js` 运行时已零引用但有意保留**：`6e6f8ab` 之后容器不再靠遍历子节点做导航，该模块在运行时无人 import，但 `test/actor.test.js` 仍在测它、`AGENTS.md` 仍把它列为四个可被 Node 加载的纯模块之一。删它要连带改测试与三处文档，属 churn；留着运行时零成本（ESM 只加载被 import 的模块）。
 - **9-28 boot 独有的 `Can't update stage views actor … needs an allocation`**（10 行，只在那次 895ms 打开后 67ms 出现，其余 4 个 boot 全为 0）：含义是对话框子树尚未分配就被要求更新 stage view，那一帧不绘制、下一帧补。30 次打开只出现 1 次、无功能故障、本机无法复现 → **待确认**，不为此改代码。
+
+## 🛠️ 故障排查
+
+| 现象 | 说明什么 | 怎么办 |
+|---|---|---|
+| 扩展根本不出现 | `metadata.json` 声明 `shell-version` 为 `48`–`50`，超出范围的 shell 直接不加载。这是有意的 —— 私有 API 半死不活地跑，比不加载更糟。 | 先看 `gnome-shell --version`，再看 [docs/maintenance/compatibility-matrix.md](docs/maintenance/compatibility-matrix.md) |
+| 每次注销后历史都空 | SQLite 后端走的是 **libgda**。没有 `gir1.2-gda-5.0`（或 6）时，历史退回纯内存存储，而本该提示你的那条通知可能已经被自己关掉了。 | `gsettings get org.gnome.shell.extensions.copyous database-backend`（关于 `GSETTINGS_SCHEMA_DIR` 见下面一条），或读日志里的 `Failed to load Gda` |
+| 改了代码毫无效果 | `disable` + `enable` **不会重新 import** 任何模块：GJS 在整个 shell 生命周期里缓存 ESModule。 | 注销再登录。`lib/preferences/**` 是唯一例外 —— 它跑在独立进程里，重开设置窗就够了 |
+| 条目菜单是空的，或动作页变成错误页 | `~/.config/copyous@local/actions.json` 能解析但**没有 `actions` 数组**（手写、保存了一半）。现在会回落到内置默认动作并记一条 `warn`，不会永久坏掉。 | 删掉这个文件让它重新生成，或从备份恢复 |
+| 代码不高亮 | 本机 `highlight.min.js` 不是系统包，是下载进 `~/.local/share/copyous@local/` 的。 | **设置 → 常规 → 依赖** 会问一次；**询问安装 Highlight.js** 控制以后还问不问 |
+| 输入法候选窗和文字位置对不上 | 候选窗位置跟着 shell 的 `inputMethod` 光标信号走，而 shell 只知道它自己认为的光标在哪。 | 带上你用的输入法与语言反馈 —— 这是与 shell 的交互问题，不是一个存储值 |
+| 某项设置卡住了，又找不到那一行 | schema **没有装进系统目录**（扩展自带 `schemas/gschemas.compiled`，无构建步骤），所以裸的 `gsettings` 只会回 `No such schema`。 | 读：`GSETTINGS_SCHEMA_DIR=~/.local/share/gnome-shell/extensions/copyous@local/schemas gsettings describe org.gnome.shell.extensions.copyous <键名>` —— 写这条文档时实跑的是这一条。把 `describe` 换成 `reset` 就能同样地清掉一个值，但它会写你真实的 dconf，所以这里**故意没有执行**。行右侧的 undo 按钮做的是同一件事，而且不可能点错键 |
+| 觉得慢，想知道是不是我们的锅 | 空闲 CPU 是靠**同一个 headless shell 开/关扩展做差分**测的，2026-10-09 的结论是**低于仪器分辨率** —— 所以"空转费电"解释不了卡顿。 | `./test/headless/idle-cost.sh 45 2`，然后看 [docs/maintenance/cost-measurement.md](docs/maintenance/cost-measurement.md) 里这些数能证明什么、不能证明什么 |
+| GNOME 大版本升级之后，状态未知 | 四道互相独立的闸门，按代价从低到高。 | `npm test` → `node scripts/shell-internals.mjs` → `./test/prefs/run.sh` → `./test/headless/run.sh live`，再注销登录一次读 journal |
+
+数据在哪、谁能读：历史在 `~/.local/share/copyous@local/clipboard.db`（明文 SQLite）加上 `images/`，
+动作在 `~/.config/copyous@local/actions.json`，缓存在 `~/.cache/copyous@local/`。自 2026-10-09 起，
+扩展新建或继承的每个目录/文件都是 `0700`/`0600`，并在每次 `enable()` 时纠正已在盘上的残留 ——
+详见 [docs/maintenance/database.md](docs/maintenance/database.md)。
 
 ## 🤝 参与贡献
 
