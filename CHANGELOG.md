@@ -606,3 +606,23 @@ Cost     One synchronous directory read per oversized image, on a path that alre
          that stops receiving new previews keeps whatever it holds.
 Commit   abf0a3a
 
+
+### D-073 · 2026-11-07 · taste
+
+Symptom  The schema defaults were upstream's, so a fresh install opened a horizontal 500 px dialog
+         with 250 px items and a 50-entry history — not the layout this fork is actually used with —
+         and the only way back from a changed dialog was the per-row undo button, one key at a time.
+Change   Moved the 17 values the owner runs into the schema defaults: vertical dialog, `fill` ×
+         `bottom` positioning, 600 px size, 555 px items, 250-entry history, keep-all retention,
+         sqlite backend, `Ctrl+Space`, search hidden until typed, show-at-pointer, and the six
+         boolean toggles beside them. Added `DefaultsGroup` at the bottom of the General page: a
+         confirmed Restore Defaults action that resets the root schema *and* every child schema
+         (text/code/image/file/link/character items, theme), which a root-only reset misses.
+Evidence L0: `npm test` 119/119; `test/prefs/run.sh` 5/5 (window builds, every group titled, every
+         setting row subtitled, every icon-only button tooltipped); `scripts/settings-coverage.mjs`
+         PASS; `scripts/settings-reference.mjs --check` PASS after regeneration. L1: the compiled
+         schema was read back with `gsettings get` under `GSETTINGS_BACKEND=memory` for five of the
+         changed keys. L2 unverified.
+Cost     Every install now opens a vertical 600 px dialog with a 250-entry history. Reverting means
+         restoring the schema defaults; the button itself is additive and can stay.
+Commit   0262c89
