@@ -38,9 +38,9 @@
 - **D-Bus 接口**（`org.gnome.Shell.Extensions.Copyous`），可显示、隐藏、切换与清空历史。
 - **82 个 GSettings 键**与 **8 种语言翻译**（de、fr、it、pl、pt_BR、ru、tr、zh_CN）。
 
-<p align="center"><img src="docs/screenshots/demo.gif" alt="快捷键唤出剪贴板面板并在输入时筛选" width="900"></p>
+<p align="center"><img src="docs/screenshots/demo.gif" alt="快捷键唤出的剪贴板面板在桌面上淡入，并在输入时筛选" width="720"></p>
 
-<p align="center"><em><b>动图内容：</b>按 <kbd>Ctrl</kbd>+<kbd>Space</kbd> 在指针处弹出剪贴板面板；输入 <code>git</code>，历史立刻收窄到匹配的那一条。<b>展示的功能：</b>快捷键唤出的竖排面板（600 px 宽，未输入时搜索框隐藏），数据全部来自本地剪贴板历史。</em></p>
+<p align="center"><em><b>动图内容：</b>按 <kbd>Ctrl</kbd>+<kbd>Space</kbd>，剪贴板面板在指针处弹出、在桌面上淡入；再输入 <code>git</code>，历史立刻收窄到匹配的那一条。<b>展示的功能：</b>快捷键唤出的竖排面板（600 px 宽，未输入时搜索框隐藏），数据全部来自本地剪贴板历史——不用切窗口，也不用开菜单。</em></p>
 
 ## 🧰 前置依赖
 
