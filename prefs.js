@@ -73,6 +73,10 @@ export default class Preferences extends ExtensionPreferences {
 			icon_name: Icon.Settings,
 		});
 		window.add(general);
+		// First on the page, so the way back to the shipped values is the first thing
+		// in the window: the General page is long and the group used to sit at its
+		// very bottom, below the fold.
+		general.add(new DefaultsGroup(this, window));
 		general.add(new HistorySettings(this, window));
 		const feedback = new FeedbackSettings(this, window);
 		dependenciesButton.bind_property('gsound', feedback, 'gsound', GObject.BindingFlags.SYNC_CREATE);
@@ -84,7 +88,6 @@ export default class Preferences extends ExtensionPreferences {
 		dependenciesButton.connect('hljs-installed', () => dependenciesSettings.openHighlightJsPage());
 		general.add(dependenciesSettings);
 		general.add(new LocationsGroup(this, window));
-		general.add(new DefaultsGroup(this, window));
 
 		// Customization page
 		const customization = new Adw.PreferencesPage({

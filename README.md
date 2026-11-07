@@ -132,7 +132,7 @@ checks the block is current.
 
 The defaults below are the values **this fork ships** — the owner's own clipboard layout
 (vertical, 600 px wide, 555 px items, a 250-entry history), not upstream's. **Restore
-Defaults** at the bottom of the General page puts every key back to them, including the
+Defaults**, the first group of the General page, puts every key back to them, including the
 per-item and theme schemas.
 
 <!-- settings-reference:start -->

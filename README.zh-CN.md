@@ -125,7 +125,7 @@ rm -rf ~/.local/share/gnome-shell/extensions/copyous@local
 刷新命令 `node scripts/settings-reference.mjs --write`，`npm test` 会检查它是否过期。
 
 下表的默认值就是**本 fork 出厂值**——作者自己用的剪贴板布局（竖排、600 px 宽、条目 555 px、
-历史 250 条），不是上游的默认值。通用页最下方的 **Restore Defaults** 会把每个键（包括各条目
+历史 250 条），不是上游的默认值。通用页**第一组**的 **Restore Defaults** 会把每个键（包括各条目
 类型与主题的 schema）恢复成它们。
 
 <!-- settings-reference:start -->
