@@ -17,7 +17,7 @@ A modern clipboard manager for GNOME.
 
 **Where to look** — See [AGENTS.md](AGENTS.md) and [MAINTENANCE.md](MAINTENANCE.md).
 
-<p align="center"><img src="docs/screenshots/overview.png" alt="The clipboard dialog with text, colour, link and code entries" width="900"></p>
+<p align="center"><img src="docs/screenshots/overview.png" alt="The clipboard popup with code and text entries, opened at the pointer" width="900"></p>
 
 ## 📖 About
 
@@ -38,7 +38,9 @@ It is **not** affiliated with or endorsed by the upstream author. The fork prese
 - **D-Bus interface** (`org.gnome.Shell.Extensions.Copyous`) to show, hide, toggle and clear history.
 - **82 GSettings keys** and **8 translations** (de, fr, it, pl, pt_BR, ru, tr, zh_CN).
 
-<p align="center"><img src="docs/screenshots/demo.gif" alt="Filtering the clipboard history by typing in the search field" width="900"></p>
+<p align="center"><img src="docs/screenshots/demo.gif" alt="The clipboard popup opening on a shortcut and filtering as you type" width="900"></p>
+
+<p align="center"><em><b>In the clip:</b> <kbd>Ctrl</kbd>+<kbd>Space</kbd> opens the clipboard popup at the pointer; typing <code>git</code> narrows the history to the entry that matches. <b>What it shows:</b> the shortcut-driven popup in the layout this fork ships (vertical, 600 px wide, search hidden until you type) over a local clipboard history.</em></p>
 
 ## 🧰 Prerequisites
 
@@ -128,6 +130,11 @@ Generated from the schema, so it cannot advertise a setting that does not exist 
 that does. Refresh with `node scripts/settings-reference.mjs --write`; the `npm test` suite
 checks the block is current.
 
+The defaults below are the values **this fork ships** — the owner's own clipboard layout
+(vertical, 600 px wide, 555 px items, a 250-entry history), not upstream's. **Restore
+Defaults** at the bottom of the General page puts every key back to them, including the
+per-item and theme schemas.
+
 <!-- settings-reference:start -->
 ### `(root)`
 
@@ -137,46 +144,46 @@ checks the block is current.
 | `disable-gda-warning` | boolean | `false` | — |
 | `disable-hljs-dialog` | boolean | `false` | — |
 | `in-memory-database` | boolean | `false` | — |
-| `database-backend` | enum | `'default'` | default / memory / sqlite / json |
+| `database-backend` | enum | `'sqlite'` | default / memory / sqlite / json |
 | `database-location` | string | `''` | — |
-| `clipboard-history` | enum | `'keep-pinned-and-tagged'` | clear / keep-pinned-and-tagged / keep-all |
-| `history-length` | integer | `50` | 10 – 500 |
+| `clipboard-history` | enum | `'keep-all'` | clear / keep-pinned-and-tagged / keep-all |
+| `history-length` | integer | `250` | 10 – 500 |
 | `history-time` | integer | `0` | 0 – 1440 |
 | `remember-search` | boolean | `false` | — |
-| `exclude-pinned` | boolean | `false` | — |
+| `exclude-pinned` | boolean | `true` | — |
 | `exclude-tagged` | boolean | `false` | — |
 | `protect-pinned` | boolean | `true` | — |
-| `protect-tagged` | boolean | `true` | — |
+| `protect-tagged` | boolean | `false` | — |
 | `paste-on-copy` | boolean | `true` | — |
-| `sync-primary` | boolean | `false` | — |
+| `sync-primary` | boolean | `true` | — |
 | `update-date-on-copy` | boolean | `true` | — |
-| `show-indicator` | boolean | `true` | — |
+| `show-indicator` | boolean | `false` | — |
 | `show-content-indicator` | boolean | `false` | — |
-| `wiggle-indicator` | boolean | `true` | — |
+| `wiggle-indicator` | boolean | `false` | — |
 | `send-notification` | boolean | `false` | — |
 | `sound` | string | `'none'` | — |
 | `volume` | double | `0.0` | -20.0 – 20.0 |
 | `wmclass-exclusions` | unknown | `[]` | — |
-| `show-at-pointer` | boolean | `false` | — |
-| `show-at-cursor` | boolean | `false` | — |
-| `clipboard-orientation` | enum | `'horizontal'` | horizontal / vertical |
-| `clipboard-position-vertical` | enum | `'top'` | top / left / center / bottom / right / fill |
-| `clipboard-position-horizontal` | enum | `'fill'` | top / left / center / bottom / right / fill |
-| `clipboard-size` | integer | `500` | 200 – 10000 |
+| `show-at-pointer` | boolean | `true` | — |
+| `show-at-cursor` | boolean | `true` | — |
+| `clipboard-orientation` | enum | `'vertical'` | horizontal / vertical |
+| `clipboard-position-vertical` | enum | `'fill'` | top / left / center / bottom / right / fill |
+| `clipboard-position-horizontal` | enum | `'bottom'` | top / left / center / bottom / right / fill |
+| `clipboard-size` | integer | `600` | 200 – 10000 |
 | `clipboard-margin-top` | integer | `6` | 0 – 10000 |
 | `clipboard-margin-right` | integer | `6` | 0 – 10000 |
 | `clipboard-margin-bottom` | integer | `6` | 0 – 10000 |
 | `clipboard-margin-left` | integer | `6` | 0 – 10000 |
-| `auto-hide-search` | boolean | `false` | — |
+| `auto-hide-search` | boolean | `true` | — |
 | `show-scrollbar` | boolean | `true` | — |
-| `item-width` | integer | `250` | 200 – 1000 |
+| `item-width` | integer | `555` | 200 – 1000 |
 | `item-height` | integer | `170` | 50 – 1000 |
 | `dynamic-item-height` | boolean | `false` | — |
 | `tab-width` | integer | `4` | 1 – 8 |
 | `show-header` | boolean | `true` | — |
 | `header-controls-visibility` | enum | `'visible'` | visible / visible-on-hover / hidden |
 | `show-item-title` | boolean | `true` | — |
-| `open-clipboard-dialog-shortcut` | unknown | `['&lt;Super&gt;&lt;Shift&gt;v']` | — |
+| `open-clipboard-dialog-shortcut` | unknown | `['&lt;Control&gt;space']` | — |
 | `toggle-incognito-mode-shortcut` | unknown | `['&lt;Super&gt;&lt;Control&gt;&lt;Shift&gt;v']` | — |
 | `open-clipboard-dialog-behavior` | enum | `'toggle'` | toggle / open-or-select-next |
 | `pin-item-shortcut` | unknown | `['&lt;Control&gt;s']` | — |

@@ -20,6 +20,7 @@ import { DependenciesWarningButton } from './lib/preferences/dependencies/depend
 import { DependenciesSettings } from './lib/preferences/dependencies/dependenciesSettings.js';
 import { AppExclusionSettings } from './lib/preferences/general/appExclusionSettings.js';
 import { BehaviorSettings } from './lib/preferences/general/behaviorSettings.js';
+import { DefaultsGroup } from './lib/preferences/general/defaultsGroup.js';
 import { FeedbackSettings } from './lib/preferences/general/feedbackSettings.js';
 import { HistorySettings } from './lib/preferences/general/historySettings.js';
 import { LocationsGroup } from './lib/preferences/general/locationsGroup.js';
@@ -83,6 +84,7 @@ export default class Preferences extends ExtensionPreferences {
 		dependenciesButton.connect('hljs-installed', () => dependenciesSettings.openHighlightJsPage());
 		general.add(dependenciesSettings);
 		general.add(new LocationsGroup(this, window));
+		general.add(new DefaultsGroup(this, window));
 
 		// Customization page
 		const customization = new Adw.PreferencesPage({

@@ -110,7 +110,7 @@
 			<summary>Store clipboard history in memory instead of on disk (Deprecated)</summary>
 		</key>
 		<key name="database-backend" enum="org.gnome.shell.extensions.copyous.DatabaseBackend">
-			<default>'default'</default>
+			<default>'sqlite'</default>
 			<summary>Selects which backend to use for the clipboard database.</summary>
 		</key>
 		<key name="database-location" type="s">
@@ -118,11 +118,11 @@
 			<summary>Path to the database. When empty defaults to {XDG_DATA_HOME}/{EXTENSION UUID}/clipboard.{db,json} depending on the backend.</summary>
 		</key>
 		<key name="clipboard-history" enum="org.gnome.shell.extensions.copyous.ClipboardHistory">
-			<default>'keep-pinned-and-tagged'</default>
+			<default>'keep-all'</default>
 			<summary>Choose what to do with your clipboard history when you restart, log out, or shut down your system</summary>
 		</key>
 		<key name="history-length" type="i">
-			<default>50</default>
+			<default>250</default>
 			<range min="10" max="500"/>
 			<summary>Number of unpinned and untagged items to keep in the clipboard history</summary>
 		</key>
@@ -138,7 +138,7 @@
 			<summary>Remember the last search</summary>
 		</key>
 		<key name="exclude-pinned" type="b">
-			<default>false</default>
+			<default>true</default>
 			<summary>Pinned items appear only when searching for pinned items</summary>
 		</key>
 		<key name="exclude-tagged" type="b">
@@ -150,7 +150,7 @@
 			<summary>Prevents pinned clipboard items from being deleted</summary>
 		</key>
 		<key name="protect-tagged" type="b">
-			<default>true</default>
+			<default>false</default>
 			<summary>Prevents tagged clipboard items from being deleted</summary>
 		</key>
 		<key name="paste-on-copy" type="b">
@@ -158,7 +158,7 @@
 			<summary>Automatically paste clipboard items when selected from clipboard history (Deprecated)</summary>
 		</key>
 		<key name="sync-primary" type="b">
-			<default>false</default>
+			<default>true</default>
 			<summary>Also copy clipboard items to the primary clipboard</summary>
 		</key>
 		<key name="update-date-on-copy" type="b">
@@ -168,7 +168,7 @@
 
 		<!-- Feedback -->
 		<key name="show-indicator" type="b">
-			<default>true</default>
+			<default>false</default>
 			<summary>Show an indicator on the top panel</summary>
 		</key>
 		<key name="show-content-indicator" type="b">
@@ -176,7 +176,7 @@
 			<summary>Show the current clipboard content in the indicator</summary>
 		</key>
 		<key name="wiggle-indicator" type="b">
-			<default>true</default>
+			<default>false</default>
 			<summary>Wiggle the indicator when a clipboard item is copied</summary>
 		</key>
 		<key name="send-notification" type="b">
@@ -212,19 +212,19 @@
 
 		<!-- Dialog -->
 		<key name="show-at-pointer" type="b">
-			<default>false</default>
+			<default>true</default>
 			<summary>Show the clipboard dialog at the pointer position</summary>
 		</key>
 		<key name="show-at-cursor" type="b">
-			<default>false</default>
+			<default>true</default>
 			<summary>Show the clipboard dialog at the text cursor position</summary>
 		</key>
 		<key name="clipboard-orientation" enum="org.gnome.shell.extensions.copyous.Orientation">
-			<default>'horizontal'</default>
+			<default>'vertical'</default>
 			<summary>Orientation of the clipboard dialog</summary>
 		</key>
 		<key name="clipboard-position-vertical" enum="org.gnome.shell.extensions.copyous.Position">
-			<default>'top'</default>
+			<default>'fill'</default>
 			<summary>Vertical position of the clipboard dialog</summary>
 
 			<aliases>
@@ -233,7 +233,7 @@
 			</aliases>
 		</key>
 		<key name="clipboard-position-horizontal" enum="org.gnome.shell.extensions.copyous.Position">
-			<default>'fill'</default>
+			<default>'bottom'</default>
 			<summary>Horizontal position of the clipboard dialog</summary>
 
 			<aliases>
@@ -242,7 +242,7 @@
 			</aliases>
 		</key>
 		<key name="clipboard-size" type="i">
-			<default>500</default>
+			<default>600</default>
 			<range min="200" max="10000" />
 			<summary>Width or height of the clipboard dialog depending on the orientation</summary>
 		</key>
@@ -268,7 +268,7 @@
 			<summary>Left margin of the clipboard dialog</summary>
 		</key>
 		<key name="auto-hide-search" type="b">
-			<default>false</default>
+			<default>true</default>
 			<summary>Automatically hide the search bar when not focused</summary>
 		</key>
 		<key name="show-scrollbar" type="b">
@@ -278,7 +278,7 @@
 
 		<!-- Item -->
 		<key name="item-width" type="i">
-			<default>250</default>
+			<default>555</default>
 			<range min="200" max="1000"/>
 			<summary>Width of a clipboard item</summary>
 		</key>
@@ -324,7 +324,7 @@
 
 		<!-- Shortcuts -->
 		<key name="open-clipboard-dialog-shortcut" type="as">
-			<default>['&lt;Super&gt;&lt;Shift&gt;v']</default>
+			<default>['&lt;Control&gt;space']</default>
 			<summary>Shortcut to open the clipboard dialog</summary>
 		</key>
 		<key name="toggle-incognito-mode-shortcut" type="as">

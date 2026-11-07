@@ -17,7 +17,7 @@
 
 **去哪看** — 见 [AGENTS.md](AGENTS.md) 与 [MAINTENANCE.md](MAINTENANCE.md)。
 
-<p align="center"><img src="docs/screenshots/overview.png" alt="剪贴板面板里的文本、颜色、链接与代码条目" width="900"></p>
+<p align="center"><img src="docs/screenshots/overview.png" alt="在指针处弹出的剪贴板面板，包含代码与文本条目" width="900"></p>
 
 ## 📖 项目说明
 
@@ -38,7 +38,9 @@
 - **D-Bus 接口**（`org.gnome.Shell.Extensions.Copyous`），可显示、隐藏、切换与清空历史。
 - **82 个 GSettings 键**与 **8 种语言翻译**（de、fr、it、pl、pt_BR、ru、tr、zh_CN）。
 
-<p align="center"><img src="docs/screenshots/demo.gif" alt="在搜索框里输入以筛选剪贴板历史" width="900"></p>
+<p align="center"><img src="docs/screenshots/demo.gif" alt="快捷键唤出剪贴板面板并在输入时筛选" width="900"></p>
+
+<p align="center"><em><b>动图内容：</b>按 <kbd>Ctrl</kbd>+<kbd>Space</kbd> 在指针处弹出剪贴板面板；输入 <code>git</code>，历史立刻收窄到匹配的那一条。<b>展示的功能：</b>快捷键唤出的竖排面板（600 px 宽，未输入时搜索框隐藏），数据全部来自本地剪贴板历史。</em></p>
 
 ## 🧰 前置依赖
 
@@ -122,6 +124,10 @@ rm -rf ~/.local/share/gnome-shell/extensions/copyous@local
 这张表由 schema 生成，所以它不会宣传一个不存在的设置，也不会藏起一个存在的。
 刷新命令 `node scripts/settings-reference.mjs --write`，`npm test` 会检查它是否过期。
 
+下表的默认值就是**本 fork 出厂值**——作者自己用的剪贴板布局（竖排、600 px 宽、条目 555 px、
+历史 250 条），不是上游的默认值。通用页最下方的 **Restore Defaults** 会把每个键（包括各条目
+类型与主题的 schema）恢复成它们。
+
 <!-- settings-reference:start -->
 ### `(root)`
 
@@ -131,46 +137,46 @@ rm -rf ~/.local/share/gnome-shell/extensions/copyous@local
 | `disable-gda-warning` | boolean | `false` | — |
 | `disable-hljs-dialog` | boolean | `false` | — |
 | `in-memory-database` | boolean | `false` | — |
-| `database-backend` | enum | `'default'` | default / memory / sqlite / json |
+| `database-backend` | enum | `'sqlite'` | default / memory / sqlite / json |
 | `database-location` | string | `''` | — |
-| `clipboard-history` | enum | `'keep-pinned-and-tagged'` | clear / keep-pinned-and-tagged / keep-all |
-| `history-length` | integer | `50` | 10 – 500 |
+| `clipboard-history` | enum | `'keep-all'` | clear / keep-pinned-and-tagged / keep-all |
+| `history-length` | integer | `250` | 10 – 500 |
 | `history-time` | integer | `0` | 0 – 1440 |
 | `remember-search` | boolean | `false` | — |
-| `exclude-pinned` | boolean | `false` | — |
+| `exclude-pinned` | boolean | `true` | — |
 | `exclude-tagged` | boolean | `false` | — |
 | `protect-pinned` | boolean | `true` | — |
-| `protect-tagged` | boolean | `true` | — |
+| `protect-tagged` | boolean | `false` | — |
 | `paste-on-copy` | boolean | `true` | — |
-| `sync-primary` | boolean | `false` | — |
+| `sync-primary` | boolean | `true` | — |
 | `update-date-on-copy` | boolean | `true` | — |
-| `show-indicator` | boolean | `true` | — |
+| `show-indicator` | boolean | `false` | — |
 | `show-content-indicator` | boolean | `false` | — |
-| `wiggle-indicator` | boolean | `true` | — |
+| `wiggle-indicator` | boolean | `false` | — |
 | `send-notification` | boolean | `false` | — |
 | `sound` | string | `'none'` | — |
 | `volume` | double | `0.0` | -20.0 – 20.0 |
 | `wmclass-exclusions` | unknown | `[]` | — |
-| `show-at-pointer` | boolean | `false` | — |
-| `show-at-cursor` | boolean | `false` | — |
-| `clipboard-orientation` | enum | `'horizontal'` | horizontal / vertical |
-| `clipboard-position-vertical` | enum | `'top'` | top / left / center / bottom / right / fill |
-| `clipboard-position-horizontal` | enum | `'fill'` | top / left / center / bottom / right / fill |
-| `clipboard-size` | integer | `500` | 200 – 10000 |
+| `show-at-pointer` | boolean | `true` | — |
+| `show-at-cursor` | boolean | `true` | — |
+| `clipboard-orientation` | enum | `'vertical'` | horizontal / vertical |
+| `clipboard-position-vertical` | enum | `'fill'` | top / left / center / bottom / right / fill |
+| `clipboard-position-horizontal` | enum | `'bottom'` | top / left / center / bottom / right / fill |
+| `clipboard-size` | integer | `600` | 200 – 10000 |
 | `clipboard-margin-top` | integer | `6` | 0 – 10000 |
 | `clipboard-margin-right` | integer | `6` | 0 – 10000 |
 | `clipboard-margin-bottom` | integer | `6` | 0 – 10000 |
 | `clipboard-margin-left` | integer | `6` | 0 – 10000 |
-| `auto-hide-search` | boolean | `false` | — |
+| `auto-hide-search` | boolean | `true` | — |
 | `show-scrollbar` | boolean | `true` | — |
-| `item-width` | integer | `250` | 200 – 1000 |
+| `item-width` | integer | `555` | 200 – 1000 |
 | `item-height` | integer | `170` | 50 – 1000 |
 | `dynamic-item-height` | boolean | `false` | — |
 | `tab-width` | integer | `4` | 1 – 8 |
 | `show-header` | boolean | `true` | — |
 | `header-controls-visibility` | enum | `'visible'` | visible / visible-on-hover / hidden |
 | `show-item-title` | boolean | `true` | — |
-| `open-clipboard-dialog-shortcut` | unknown | `['&lt;Super&gt;&lt;Shift&gt;v']` | — |
+| `open-clipboard-dialog-shortcut` | unknown | `['&lt;Control&gt;space']` | — |
 | `toggle-incognito-mode-shortcut` | unknown | `['&lt;Super&gt;&lt;Control&gt;&lt;Shift&gt;v']` | — |
 | `open-clipboard-dialog-behavior` | enum | `'toggle'` | toggle / open-or-select-next |
 | `pin-item-shortcut` | unknown | `['&lt;Control&gt;s']` | — |
