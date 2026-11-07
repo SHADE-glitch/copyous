@@ -626,3 +626,17 @@ Evidence L0: `npm test` 119/119; `test/prefs/run.sh` 5/5 (window builds, every g
 Cost     Every install now opens a vertical 600 px dialog with a 250-entry history. Reverting means
          restoring the schema defaults; the button itself is additive and can stay.
 Commit   0262c89
+
+### D-074 · 2026-11-07 · taste
+Symptom  D-073 put the Defaults group at the bottom of the General page. That page lists the
+         history, the feedback switches, the behaviour toggles, the app exclusions, the
+         dependencies and the locations — so the one control that undoes all of it was the last
+         thing below the fold, on a page you scroll.
+Change   Moved the group to the top of the General page, above the history section. The control,
+         its confirmation and the keys it resets are unchanged; only the position is.
+Evidence L0: `npm test` 119/119 and `test/prefs/run.sh` 5/5 (the window still builds and every
+         group, row and button still passes the copy checks). L1 unverified (no live window opened
+         in this session). L2 unverified.
+Cost     The first group of the page is now a destructive action. It is confirmed before it acts,
+         and the group is titled "Defaults".
+Commit   38d8faf
