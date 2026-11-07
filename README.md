@@ -17,7 +17,7 @@ A modern clipboard manager for GNOME.
 
 <p align="center"><em><b>The clipboard popup</b> — history for text, code, links, images and colors, opened where the pointer is.</em></p>
 
-<p align="center"><img src="docs/screenshots/demo.gif" alt="The clipboard popup fading in over the desktop after a shortcut, then filtering as you type" width="720"></p>
+<p align="center"><img src="docs/screenshots/demo.gif" alt="The clipboard popup fading in over the desktop after a shortcut, then filtering as you type" width="900"></p>
 
 <p align="center"><em><b>In the clip:</b> <kbd>Ctrl</kbd>+<kbd>Space</kbd> opens the clipboard popup at the pointer and the panel fades up over the desktop; typing <code>git</code> then narrows the history to the entry that matches. <b>What it shows:</b> the shortcut-driven popup in the layout this fork ships (vertical, 600 px wide, search hidden until you type) over a local clipboard history — no window to focus, no menu to open.</em></p>
 
