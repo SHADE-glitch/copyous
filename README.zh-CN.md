@@ -17,6 +17,8 @@
 
 **去哪看** — 见 [AGENTS.md](AGENTS.md) 与 [MAINTENANCE.md](MAINTENANCE.md)。
 
+<p align="center"><img src="docs/screenshots/overview.png" alt="剪贴板面板里的文本、颜色、链接与代码条目" width="900"></p>
+
 ## 📖 项目说明
 
 本仓库是 **boerdereinar** 的 [**Copyous**](https://github.com/boerdereinar/copyous) 的**个人维护分支**，冻结在上游 **2.0.1** 版本，以 `copyous@local` 为 UUID 在本地维护。
@@ -35,6 +37,8 @@
 - 基于 GResource 的**主题**、可选的 **highlight.js** 语法高亮、**GSound** 提示音。
 - **D-Bus 接口**（`org.gnome.Shell.Extensions.Copyous`），可显示、隐藏、切换与清空历史。
 - **82 个 GSettings 键**与 **8 种语言翻译**（de、fr、it、pl、pt_BR、ru、tr、zh_CN）。
+
+<p align="center"><img src="docs/screenshots/demo.gif" alt="在搜索框里输入以筛选剪贴板历史" width="900"></p>
 
 ## 🧰 前置依赖
 

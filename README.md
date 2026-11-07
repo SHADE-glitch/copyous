@@ -17,6 +17,8 @@ A modern clipboard manager for GNOME.
 
 **Where to look** — See [AGENTS.md](AGENTS.md) and [MAINTENANCE.md](MAINTENANCE.md).
 
+<p align="center"><img src="docs/screenshots/overview.png" alt="The clipboard dialog with text, colour, link and code entries" width="900"></p>
+
 ## 📖 About
 
 This repository is a **personal maintenance fork** of [**Copyous**](https://github.com/boerdereinar/copyous) by **boerdereinar**, frozen at upstream **2.0.1** and maintained locally under the UUID `copyous@local`.
@@ -35,6 +37,8 @@ It is **not** affiliated with or endorsed by the upstream author. The fork prese
 - **Theming** via GResource, optional **highlight.js** syntax highlighting, and **GSound** feedback.
 - **D-Bus interface** (`org.gnome.Shell.Extensions.Copyous`) to show, hide, toggle and clear history.
 - **82 GSettings keys** and **8 translations** (de, fr, it, pl, pt_BR, ru, tr, zh_CN).
+
+<p align="center"><img src="docs/screenshots/demo.gif" alt="Filtering the clipboard history by typing in the search field" width="900"></p>
 
 ## 🧰 Prerequisites
 
