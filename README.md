@@ -13,11 +13,17 @@ A modern clipboard manager for GNOME.
 
 **What it solves** — It preserves the upstream feature set while tightening correctness, security, performance and resource management — parameterised SQLite queries, a tuned database and no enable/disable leaks.
 
+<p align="center"><img src="docs/screenshots/overview.png" alt="The clipboard popup with code and text entries, opened at the pointer" width="900"></p>
+
+<p align="center"><em><b>The clipboard popup</b> — history for text, code, links, images and colors, opened where the pointer is.</em></p>
+
+<p align="center"><img src="docs/screenshots/demo.gif" alt="The clipboard popup fading in over the desktop after a shortcut, then filtering as you type" width="720"></p>
+
+<p align="center"><em><b>In the clip:</b> <kbd>Ctrl</kbd>+<kbd>Space</kbd> opens the clipboard popup at the pointer and the panel fades up over the desktop; typing <code>git</code> then narrows the history to the entry that matches. <b>What it shows:</b> the shortcut-driven popup in the layout this fork ships (vertical, 600 px wide, search hidden until you type) over a local clipboard history — no window to focus, no menu to open.</em></p>
+
 **How to run** — Clone into `~/.local/share/gnome-shell/extensions/copyous@local`, then `gnome-extensions enable copyous@local` (log out and back in on Wayland).
 
 **Where to look** — See [AGENTS.md](AGENTS.md) and [MAINTENANCE.md](MAINTENANCE.md).
-
-<p align="center"><img src="docs/screenshots/overview.png" alt="The clipboard popup with code and text entries, opened at the pointer" width="900"></p>
 
 ## 📖 About
 
@@ -37,10 +43,6 @@ It is **not** affiliated with or endorsed by the upstream author. The fork prese
 - **Theming** via GResource, optional **highlight.js** syntax highlighting, and **GSound** feedback.
 - **D-Bus interface** (`org.gnome.Shell.Extensions.Copyous`) to show, hide, toggle and clear history.
 - **82 GSettings keys** and **8 translations** (de, fr, it, pl, pt_BR, ru, tr, zh_CN).
-
-<p align="center"><img src="docs/screenshots/demo.gif" alt="The clipboard popup fading in over the desktop after a shortcut, then filtering as you type" width="720"></p>
-
-<p align="center"><em><b>In the clip:</b> <kbd>Ctrl</kbd>+<kbd>Space</kbd> opens the clipboard popup at the pointer and the panel fades up over the desktop; typing <code>git</code> then narrows the history to the entry that matches. <b>What it shows:</b> the shortcut-driven popup in the layout this fork ships (vertical, 600 px wide, search hidden until you type) over a local clipboard history — no window to focus, no menu to open.</em></p>
 
 ## 🧰 Prerequisites
 
@@ -333,7 +335,6 @@ The per-commit record — kind, evidence tier and commit for every divergence �
 declared window that touched production code. Division of labour, so this does not become a third
 copy of the same facts: the curated narrative stays in `README.zh-CN.md` (single authoritative copy,
 as stated above), CHANGELOG.md is the machine-checked index, and neither restates the other.
-
 
 - **Security / correctness:** **parameterised all Gda queries** (removing string-built SQL), plus a broad correctness, performance and cleanup pass across 21 files.
 - **Resource leaks:** destroy clipboard items when they are removed; release resources leaked on every enable/disable; discard async init work that outlives a disable; make the `actions.json` monitor guard consistent across both users; restore popup keyboard focus stolen by a modal grab and fix a `focusChild` typo; finish the close teardown when a shortcut press replaces the close animation's `onComplete`, which otherwise leaks `Main.modalCount` for the whole session; check the cancellation token before an async continuation writes through a `FileItem`/`LinkItem` actor that viewport recycling may already have destroyed.
