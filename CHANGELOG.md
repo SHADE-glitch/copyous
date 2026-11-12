@@ -683,3 +683,10 @@ Evidence  `npm test` green, `npm run check:log` PASS. The numbered form was nega
 Cost      The snapshot is still a copy by design (CI cannot read `~/.agents`); drift is caught by
           audit section 13, which now also reports a snapshot that names CI only in prose form.
 Commit    6428f6f
+
+### D-078 · 2026-11-12 · chore
+Symptom   The project-level rules pointer block in AGENTS.md used bare `@~/.agents/standards/...` imports to pull in the machine-wide standard. That only delivers the rule text to agents that expand `@` imports or read `opencode.json`; an agent that does neither holds the pointer and none of the rule text.
+Change    Replaced the two `@` imports with plain backticked absolute paths (`~/.agents/standards/STANDARD.md`, `~/.agents/standards/dimensions/a.md`). The rule text is now delivered by the tool-neutral global behavior contract (GLOBAL.md) before the first edit, so the pointer works for every agent regardless of import expansion. No rule text was duplicated or changed — only the pointer form.
+Evidence  `npm test` 119/119 and `npm run check:log` PASS (both exit 0); the change sits inside the pointer block and does not touch heading counts or section structure.
+Cost      The pointer is a local copy of the instruction; the tool-neutral contract is what carries the rule text. Whether that text actually reaches a session is a per-tool check, not a repository guard.
+Commit    798de64
