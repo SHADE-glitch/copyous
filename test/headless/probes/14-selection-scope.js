@@ -77,6 +77,17 @@
 					: { observedIndex: cont._filtered.indexOf(focusedEntry()), expectedIndex: 1 },
 			);
 			co.chk('boxNeverLostOnRoundTrip', focusedEntry() !== null ? true : 'no key focus after round trip');
+
+			// A keystroke re-filters without changing scope while the search field
+			// owns focus. Projecting the selection must not grab key focus back to
+			// the list, or every typed character would break text entry.
+			searchEntry.clutter_text.grab_key_focus();
+			await co.sleep(200);
+			co.chk('typingFocusesSearchField', focusedEntry() === null ? true : 'list still holds key focus');
+			cont.search(searchEntry.searchQuery);
+			await co.sleep(300);
+			co.chk('typingDoesNotStealFocus', focusedEntry() === null ? true : 'search field lost key focus');
+			co.chk('typingKeepsSelection', cont._focusEntry !== null ? true : 'selection was dropped');
 		}))
 	)
 		return co.done();
