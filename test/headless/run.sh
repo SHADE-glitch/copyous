@@ -21,7 +21,7 @@ set -u
 HARNESS=$(cd "$(dirname "$0")" && pwd)
 WORK=${COPYOUS_WORK:-/tmp/copyous-harness}
 OUT=$WORK/out
-ALL_PROBES="01 02 03 04 05 06 07 08 09 10 11 12 13"
+ALL_PROBES="01 02 03 04 05 06 07 08 09 10 11 12 13 14"
 ALL_CONFIGS="live unwindowed horizontal"
 
 CFG=${1:-}
@@ -33,7 +33,7 @@ usage: $0 <config|all> [probe ...]
                          04 windowed-structure 05 windowed-cost 06 ux-hidden
                          07 wiring 08 permissions 09 cache-residue
                          10 notification-loopgap 11 grab-failure
-                         12 actions-config 13 media-duration)
+                         12 actions-config 13 media-duration 14 selection-scope)
 EOF
 	exit 2
 fi
