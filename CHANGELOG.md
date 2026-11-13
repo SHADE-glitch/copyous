@@ -718,3 +718,23 @@ Evidence  `python3 ~/.agents/scripts/render_standards.py --check .` reports the 
 Cost      `AGENTS.md` grows by about 10.5 KB, paid on every session read; the copy can drift, so the
           drift check is the only thing keeping it honest and it exists only on this machine.
 Commit    f40497c
+
+### D-081 · 2026-11-13 · fix
+
+Symptom   Toggling the pinned filter with Alt rebuilt the list around three competing anchors for the
+          selection box -- live key focus, a remembered entry and the first match. With exclude-pinned
+          on the two views are disjoint, so a normal-to-pinned-to-normal round trip dropped the box or
+          left it on an unrelated row instead of the one selected before Alt; the pinned view forgot
+          its own position too.
+Change    Made the selection a single authoritative entry with per-scope memory keyed on query.pinned.
+          Every rebuild resolves it to a real row of the destination view and projects it from one
+          place. Re-focus happens only when the list owns key focus or a scope switch occurred, never
+          while the dialog is closed or a keystroke is being typed; a view entered without a memory
+          starts at its first row, and a deleted or unmatched remembered row falls back there too.
+Evidence  New headless probe 14 drives the real Alt chain: it fails 8/10 on the pre-fix tree and passes
+          13/13 on live, unwindowed and horizontal. Regression probes 01/03/04/06 stay green; `npm test`
+          119/119; `npm run check:log` PASS.
+Cost      The box remains St's `:focus` projection of key focus, so it is still absent while the search
+          field owns focus -- typing must not have focus stolen. The theme .gresource has no in-tree
+          source, so no visual change was possible and none was made.
+Commit    9f135b3, 034dee1
